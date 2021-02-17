@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import RectangleSelector,EllipseSelector,Slider
-import pandas as pd
+
 cordinate = (0,0,0,0)
 
 
