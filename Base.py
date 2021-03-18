@@ -6,7 +6,7 @@ import RoiSelect
 
 
 fa = 100 # freq ac1uisiszione
-fr = 35
+fr = 5
 path_base = r'C:/Users/Rodo/Dropbox/Il mio PC (LAPTOP-SA2HR7TC)/Desktop/Tesi/Dati/'
 path = path_base + f'cfrp{fr}hz.sfmov'
 path_npy = path_base + f'cpfr{fr}.npy'
