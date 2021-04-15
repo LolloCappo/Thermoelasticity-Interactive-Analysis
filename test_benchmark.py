@@ -5,7 +5,7 @@ import analisi_tsa # modulo
 import RoiSelect
 
 fa = 100 # freq ac1uisiszione
-fr = 35
+fr = 45
 
 x = 300
 y = 300
@@ -17,7 +17,7 @@ th = -50*(np.pi/180)+th_offset
 print(f'phase offset : {th_offset*180/np.pi} \nphase obj: {(th-th_offset)*180/np.pi} \nphase_res {th*180/np.pi}')
 wr = fr*(2*np.pi)
 t = np.arange(z)*(1/fa)
-flag = False
+flag = True
 if flag:
     for i in range(x):
         for j in range(y//2):

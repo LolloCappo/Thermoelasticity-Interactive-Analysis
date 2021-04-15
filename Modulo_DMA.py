@@ -3,12 +3,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 # \dma\CFRP_0.5N encoding = 'cp1252' engine='python' skipfooter =1 decimal= ","
 
-def estrai(path_base,N,name = None):
+def estrai(path_base,N,name = None,nrows = 20):
     if name == None:
         name = f'_{np.arange(1,N+1)}'
     else:
         N = len(name)
-    keys = ['test','f','F','x','M*','tan_delta']
+    keys = ['test','f','F','x','M*','tan_delta','M','M\'']
     data = pd.DataFrame(columns = keys)
     names = ['Index','Ts','t','f','F','x','Phase','F0','x0','Tr','M','M\'','M*','tan_delta','C','C\'','C*']
     for i in range(N):
@@ -19,11 +19,12 @@ def estrai(path_base,N,name = None):
             else:
                 df[key] = df[key].str.replace(',','.')
                 df[key] = pd.to_numeric(df[key])
+        df = df.head(nrows)
         data = pd.merge(data,df[keys],how='outer')
     data = data.set_index(['test'])
     return data
 
-def plottaggio(data,ax1,ax2,label='',f_min=0,f_max=None,name = None,flag_colore = 0,label_colore = 'dietro'):
+def plottaggio(data,ax1,ax2,label='test',f_min=0,f_max=None,name = None,flag_colore = 0,label_colore = 'dietro',flag_titile:bool = False):
     if name == None:
         name = pd.Series(data.index.values).unique() # da rivedere
     if f_max == None:
@@ -53,11 +54,17 @@ def plottaggio(data,ax1,ax2,label='',f_min=0,f_max=None,name = None,flag_colore 
         data.loc[name[i]].plot.scatter(x='f',y='tan_delta',ax = ax2,label=label_temp,color='none',edgecolors = colore)
         M_media += data.loc[name[i]]['M*'].to_numpy()/(N)
         tan_media += data.loc[name[i]]['tan_delta'].to_numpy()/(N)
-
+    if flag_colore == 1:
+        ax1.legend([label])
+        ax2.legend([label])
+    elif flag_colore == 2:
+        ax1.legend([f'test {label}',f'test {label_colore} {label}'])
+        ax2.legend([f'test {label}',f'test {label_colore} {label}'])
     ax1.plot(f,M_media,label='media',color = colore_media)   
     ax2.plot(f,tan_media,label='media',color = colore_media)
-    ax1.set(title='M*')
-    ax2.set(title='tan_delta')
+    if flag_titile:
+        ax1.set(title='M*')
+        ax2.set(title='tan_delta')
     return (M_media,tan_media)
 
 def main():
@@ -68,7 +75,7 @@ def main():
     path_base = r'dma/provino 1a/'
 
     data_1N = estrai(path_base,1,name=name)
-    fig,(ax1,ax2) = plt.subplots(1,2,figsize=(20,10))
+    _,(ax1,ax2) = plt.subplots(1,2,figsize=(20,10))
     plottaggio(data_1N,ax1,ax2,f_min = f_min,flag_colore = 0)
     print(data_1N)
     l = 69.73

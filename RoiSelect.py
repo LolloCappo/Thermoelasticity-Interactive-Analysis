@@ -9,8 +9,7 @@ def __onselect(eclick, erelease):
     "eclick and erelease are matplotlib events at press and release."
     x1, y1 = eclick.xdata, eclick.ydata
     x2, y2 = erelease.xdata, erelease.ydata
-    print("(%3.2f, %3.2f) --> (%3.2f, %3.2f)" % (x1, y1, x2, y2))
-
+    #print("(%3.2f, %3.2f) --> (%3.2f, %3.2f)" % (x1, y1, x2, y2))
     global cordinate
     cordinate = (int(x1),int(y1),int(x2),int(y2))
 
@@ -23,6 +22,12 @@ def __toggle_selector(event):
         print(' Selector activated.')
         __toggle_selector.RS.set_active(True)
 
+def __update(cmap_lim_inf,cmap_lim_sup,AxesImage,fig):
+    lim_inf = cmap_lim_inf.val
+    lim_sup = cmap_lim_sup.val
+    if lim_inf<lim_sup:
+        AxesImage.set_clim([lim_inf,lim_sup])
+    fig.canvas.draw_idle()
 
 def selectROI(matrice_immagine,titolo='Immagine'):
     ''' 
@@ -43,6 +48,7 @@ def selectROI(matrice_immagine,titolo='Immagine'):
     plt.connect('key_press_event', __toggle_selector)
     plt.show()
     return cordinate
+
 
 def select_line(matrice_immagine,titolo='Immagine'):
     ''' 
@@ -84,6 +90,36 @@ def selectROI_ellipse(matrice_immagine,titolo='Immagine'):
     plt.connect('key_press_event', __toggle_selector)
     plt.show()
     return cordinate
+
+
+def interactive_cmap(matrice_immagine,titolo='Immagine'):
+    ''' 
+    input:
+        matrice_immagine
+    output:
+        (x1,y1,x2,y2)
+    '''
+    fig, ax = plt.subplots()
+    plt.subplots_adjust(left=0.25, bottom=0.25)
+    ax.set(title=titolo)
+    lim_inf = 1.1*np.min(matrice_immagine)
+    lim_sup = 0.9*np.max(matrice_immagine)
+    AxesImage = plt.imshow(matrice_immagine,cmap='magma')
+    fig.colorbar(AxesImage,orientation = 'vertical',fraction = 0.5)
+    
+
+    axcolor = 'lightgoldenrodyellow'
+    ax_lim_inf = plt.axes([0.1, 0.25, 0.0225, 0.63], facecolor=axcolor)
+    ax_lim_sup = plt.axes([0.2, 0.25, 0.0225, 0.63], facecolor=axcolor)
+
+    cmap_lim_inf = Slider(ax_lim_inf, 'sunf', lim_inf/1.1, lim_sup/0.9, valinit=lim_inf,orientation="vertical")
+    cmap_lim_sup = Slider(ax_lim_sup, 'sup', lim_inf/1.1, lim_sup/0.9, valinit=lim_sup,orientation="vertical")
+    cmap_lim_inf.on_changed(lambda temp: __update(cmap_lim_inf,cmap_lim_sup,AxesImage,fig))
+    cmap_lim_sup.on_changed(lambda temp: __update(cmap_lim_inf,cmap_lim_sup,AxesImage,fig))
+    plt.show()
+    return (cmap_lim_inf,cmap_lim_sup)
+
+
 
 if __name__ == '__main__':
     print('Modulo per roi interattiva')
