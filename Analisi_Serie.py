@@ -11,6 +11,8 @@ import RoiSelect
 fa = 120 # freq ac1uisiszione
 fr = [10,20,30,40,50]
 force = ['L','M','H']
+
+
 label_nome = "strato_1"
 # Inizio il vettore Nomi
 names = []
@@ -25,38 +27,47 @@ for f in fr:
         else:
             print('file .sfmov')
             names.append({'name':f"cfrp_{label_nome}_{fa}Hz_f{f}_{l}",'fa':fa,'fr':f,'force':l,'path':path+f'{label_nome}/cfrp_{label_nome}_{fa}Hz_f{f}_{l}.sfmov'})
-#
+for name in names:
+    print(name['name'])
+print(len(names))#
 path_res = f"{path}/res/"
 Analisi = analisi_tsa.TSA(fa,names[0]['path'])
 
 cordinate_roi = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo ='Seleziona ROI')
 Analisi.set_ROI(cordinate_roi[1],cordinate_roi[0],cordinate_roi[3],cordinate_roi[2],view = False)
 cordinate_crop = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo = 'Seleziona finestra di compensazione')
-
-file_res = open(path_res+'res.json',"w")
+dict_res = []
 for name in names:
     print(name)
+    theta_offset = 0
+    flag_analisi = 'y'
     if name != names[0]:
         Analisi = analisi_tsa.TSA(name['fa'],name['path'])
         Analisi.set_ROI(cordinate_roi[1],cordinate_roi[0],cordinate_roi[3],cordinate_roi[2],view = False)
-    (fr_real,_,_) = Analisi.freq_detection(name['fr'],cordinate_crop[1],cordinate_crop[0],cordinate_crop[3],cordinate_crop[2],df = 5,view = True)
-    while (flag_utente:= input(f"Va bene la zona compensazione? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
-    while flag_utente == 'n':
-        cordinate = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo='Seleziona finestra di compensazione')
-        (fr_real,_,_) = Analisi.freq_detection(name['fr'],cordinate_crop[1],cordinate_crop[0],cordinate_crop[3],cordinate_crop[2],df = 4,view = True)
+    while flag_analisi == 'y':
+        (fr_real,_,_) = Analisi.freq_detection(name['fr'],cordinate_crop[1],cordinate_crop[0],cordinate_crop[3],cordinate_crop[2],df = 5,view = True)
         while (flag_utente:= input(f"Va bene la zona compensazione? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
+        while flag_utente == 'n':
+            cordinate = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo='Seleziona finestra di compensazione')
+            (fr_real,_,_) = Analisi.freq_detection(name['fr'],cordinate_crop[1],cordinate_crop[0],cordinate_crop[3],cordinate_crop[2],df = 4,view = True)
+            while (flag_utente:= input(f"Va bene la zona compensazione? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
 
-    [mappa_modulo,mappa_fase]=Analisi.lockin(view = True)
-    t_lim_inf = None
-    t_lim_sup = None
-    while (flag_utente:= input(f"Va bene la zona cmap? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
-    while flag_utente == 'n':
-        (t_lim_inf,t_lim_sup) = Analisi.view_result(interactive=True)
+        [mappa_modulo,mappa_fase]=Analisi.lockin(view = True)
+        t_lim_inf = None
+        t_lim_sup = None
         while (flag_utente:= input(f"Va bene la zona cmap? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
-    Analisi.view_result(t_lim_inf=t_lim_inf,t_lim_sup = t_lim_sup, save = True,path=path_res+'cfrp_force_'+name['force']+'_')
-    dict_res = {'Ora analisi':time.ctime(),'fa[Hz]':name['fa'],'fr[Hz]':name['fr'],'fr_real':fr_real,'carico':name['force'],'name':name['name'],'modulo_limiti_cmap':(t_lim_inf,t_lim_sup)}    
+        while flag_utente == 'n':
+            (t_lim_inf,t_lim_sup,theta_offset) = Analisi.view_result(interactive=True)
+            while (flag_utente:= input(f"Va bene la zona cmap? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
+        Analisi.view_result(t_lim_inf=t_lim_inf,t_lim_sup = t_lim_sup, save = True,path=path_res+'cfrp_force_'+name['force']+'_')
+        while (flag_analisi:= input(f"Ripetere l'analisi? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
+    dict_res.append({'Ora analisi':time.ctime(),'fa[Hz]':name['fa'],'fr[Hz]':name['fr'],'fr_real':fr_real,'carico':name['force'],'name':name['name'],'modulo_limiti_cmap':(t_lim_inf,t_lim_sup),'fase offset':theta_offset})    
     np.save(path_res + f"res_{label_nome}_{name['fr']}_" + name['force'] +'.npy',np.array([mappa_modulo,mappa_fase]))
-    res_fr = json.dumps(dict_res)
-    file_res.write(res_fr)
+
+file_res = open(path_res+'res.json',"w")
+for i in dict_res:   
+    file_res.write(json.dumps(i))
     file_res.write("\n")
 file_res.close()
+
+

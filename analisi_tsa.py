@@ -4,6 +4,8 @@ import matplotlib.patches as patches
 import matplotlib.animation as animation 
 from matplotlib.widgets import Slider
 
+from scipy import ndimage
+
 import pysfmov
 from scipy.io import loadmat
 
@@ -96,7 +98,7 @@ class TSA:
                     _,ax = plt.subplots(2,1,figsize=(16,9))
                     ax[0].plot(f,2*S_fft)
                     ax[0].grid(True)
-                    ax[0].set(title=r'F = FFT[f(x_0,y_0,t)] ',xlabel='f [Hz]')
+                    ax[0].set(title=r'$FFT[ f( x_0 , y_0 , t)]$',xlabel='f [Hz]')
                     ax[0].vlines(self.__fr_original,*[0,s_fft_max])
                     ax[0].vlines(n_lim[0]*self.__fa/N,*[0,s_fft_max])
                     ax[0].vlines(n_lim[1]*self.__fa/N,*[0,s_fft_max])
@@ -104,7 +106,7 @@ class TSA:
                         ax[0].plot(f[n],np.abs(2*S_fft[n]),'r*')
                     ax[1].plot(time,signal)
                     ax[1].grid(True)
-                    ax[1].set(title='f(x_0,y_0,t) ',xlabel='t [s]')
+                    ax[1].set(title=r'$f(x_0,y_0,t)$',xlabel='t [s]')
                     plt.show()
                 if flag_max:
                     flag_utente = 0
@@ -149,8 +151,8 @@ class TSA:
             (dx,dy) = (self.__dx,self.__dy)
             self.finestra_video_roi = self.finestra_video.copy()
             self.finestra_video_roi_offset = np.zeros([dx,dy])
-        plt.imshow(self.finestra_video_roi_offset)
-        plt.show()
+        #plt.imshow(self.finestra_video_roi_offset)
+        #plt.show()
         for x in range(dx):
             for y in range(dy):
                 self.finestra_video_roi_offset[x,y] =  self.finestra_video_roi[x,y,0].copy() #matrice_temporanea[x,y,0]
@@ -168,7 +170,7 @@ class TSA:
             ax_1.set(title='Finestra ROI f(x,y,t = 0)')
             plt.show()
 
-    def selezione_ROI_foro(self,x1,y1,x2,y2,reset=True):
+    def set_hole(self,x1,y1,x2,y2,reset=True):
         if reset:
             self.set_ROI(*self.__cordinate_roi) # da gesti meaglio
         a = (x2 - x1)/2
@@ -179,7 +181,7 @@ class TSA:
         for x in range(int(2*a)+1):
             for y in range(int(2*b)+1):
                 if ((x+x1+1/2-x_0)/a)**2+((y1+y+1/2-y_0)/b)**2 <= 1:
-                    self.finestra_video_roi_mask[x+x1,y+y1,:] = 0
+                    self.finestra_video_roi_mask[x+x1,y+y1] = 0
 
     def lockin(self,fr=None,view = False,t_lim_inf = None,t_lim_sup = None):
         ''' Ottengo la mappa di modulo e fase, tramite lock-in.
@@ -223,16 +225,18 @@ class TSA:
         '''
         # definisco i limiti
         p_sup = 0.96 # [%] dei valori limite sup
-        p_inf = 0.4
-        istogramma = np.zeros(self.__dx_roi*self.__dy_roi)
-        istogramma = np.sort(np.reshape(self.map_amplitude,self.__dx_roi*self.__dy_roi))
+        p_inf = 0.1
+        N = self.__dx_roi*self.__dy_roi
+        istogramma = np.zeros(N)
+        istogramma = np.sort(np.reshape(self.map_amplitude,N))
         if t_lim_sup is None:
-            t_lim_sup = istogramma[int(p_sup*self.__dx_roi*self.__dy_roi)]
+            t_lim_sup = istogramma[int(p_sup*N)]
         if t_lim_inf is None:
-            t_lim_inf = istogramma[int(p_inf*self.__dx_roi*self.__dy_roi)]
+            t_lim_inf = istogramma[int(p_inf*N)]
 
         if interactive:
             (t_lim_inf,t_lim_sup) = interactive_cmap(self.map_amplitude,titolo = 'Mappa modulo',lim_inf=t_lim_inf,lim_sup=t_lim_sup)
+            theta_offset = intercative_phase(self.map_phase,titolo='Mappa fase')
         else:
             fig = plt.figure(constrained_layout=True)
             spec = fig.add_gridspec(1,2)
@@ -246,13 +250,38 @@ class TSA:
             temp = ax_1.imshow(self.map_phase,cmap='twilight',clim = [-180,180])
             fig.colorbar(temp,orientation = 'vertical',fraction = 0.5)
             ax_1.set(title=f'fase [deg]')
+            theta_offset = self.__fase_picco
             if save:
                 plt.savefig(path+f'fa{self.__fa}_fr{self.__fr:.{2}f}.png')
             else:
                 plt.show()
+        return (t_lim_inf,t_lim_sup,theta_offset)
 
-        return (t_lim_inf,t_lim_sup)
+    def view_result_coutour_plot(self,levels = []):
+        N = self.__dx_roi*self.__dy_roi
+        istogramma = np.zeros(N)
+        istogramma = np.sort(np.reshape(self.map_amplitude,N))
+        if not levels:
+            levels = [istogramma[int(0.2*N)],istogramma[int(0.5*N)],istogramma[int(0.65*N)],istogramma[int(0.80*N)],istogramma[int(0.95*N)]]
+        mappa = self.map_amplitude.copy()
+        #footprint = ndimage.generate_binary_structure(2, 1)
+        footprint = np.matrix([[1,1,1],[1,2,1],[1,1,1]])
 
+        mappa = ndimage.gaussian_filter(mappa,sigma=3)
+        mappa = ndimage.grey_erosion(mappa,footprint=footprint)
+        mappa = ndimage.grey_dilation(mappa,footprint=footprint)
+        plt.imshow(mappa,cmap = 'inferno')
+        plt.show()
+        mappa = np.flip(mappa, axis=0)
+        _,ax= plt.subplots(figsize=(15*self.__dy_roi/(self.__dx_roi+self.__dy_roi),15*self.__dx_roi/(self.__dx_roi+self.__dy_roi)))
+        CS = ax.contour(np.arange(self.__dy_roi),np.arange(self.__dx_roi),mappa,levels,cmap = 'inferno')
+        ax.clabel(CS, inline=True, fontsize=10)
+        plt.show()
+        #_,ax= plt.subplots()
+        #levels = [50,100,140,160]
+        #CS = ax.contour(np.arange(self.__dy_roi),np.arange(self.__dx_roi),np.flip(self.map_phase, axis=0),levels,cmap = 'inferno')
+        #ax.clabel(CS, inline=True, fontsize=10)
+        #plt.show()
     
     def view(self,t_lim_inf = None,t_lim_sup = None): 
         ''' Visualizza finestra corrente
@@ -319,7 +348,7 @@ class TSA:
             res_2.append(self.map_amplitude[i[0],i[1]])
         plt.plot(res_2)
         plt.plot(np.mean(res_2)*np.ones(len(res_2)))
-        plt.show()
+        plt.show()        
 
     def get_result(self):
         return self.map_amplitude,self.map_phase
@@ -339,6 +368,29 @@ def __update(cmap_lim_inf,cmap_lim_sup,AxesImage,fig):
     if lim_inf<lim_sup:
         AxesImage.set_clim([lim_inf,lim_sup])
     fig.canvas.draw_idle()
+
+def __update_phase(slider_lim,AxesImage,fig,map_phase):
+    th_offset = slider_lim.val
+    (dx,dy) = map_phase.shape
+    map_phase_temp = map_phase.copy()
+    for x in range(dx):
+        for y in range(dy):
+            map_phase_temp[x,y] = abs(map_phase_temp[x,y] + th_offset)%180 *(-1)*np.sign(map_phase_temp[x,y] + th_offset)
+    AxesImage.imshow(map_phase_temp,cmap='twilight',clim = [-180,180])
+    fig.canvas.draw_idle()
+
+def intercative_phase(matrice_immagine,titolo='Immagine'):
+    fig, ax = plt.subplots()
+    plt.subplots_adjust(left=0.25, bottom=0.25)
+    ax.set(title=titolo)
+    temp = ax.imshow(matrice_immagine,cmap='twilight',clim = [-180,180])
+    plt.colorbar(temp,orientation = 'vertical',fraction = 0.5)
+    ax_slider = plt.axes([0.1, 0.25, 0.0225, 0.63], facecolor='lightgoldenrodyellow')
+    slider_lim = Slider(ax_slider, 'phase', -180, 180,orientation="vertical")
+    slider_lim.on_changed(lambda temp: __update_phase(slider_lim,ax,fig,matrice_immagine))
+    plt.show()
+    return  slider_lim.val
+
 
 def interactive_cmap(matrice_immagine,titolo='Immagine',lim_inf=None,lim_sup=None):
     ''' 

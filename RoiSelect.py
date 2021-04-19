@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.widgets import RectangleSelector,EllipseSelector,Slider
+import os
+from matplotlib.widgets import RectangleSelector,Button,EllipseSelector,Slider,Cursor
 
 cordinate = (0,0,0,0)
+cordinate_punto = [0,0]
 
 
 def __onselect(eclick, erelease):
@@ -36,8 +38,10 @@ def selectROI(matrice_immagine,titolo='Immagine'):
     output:
         (xi,yi,dx,dy)
     '''
+    (t_lim_inf,t_lim_sup)=set_cmap(matrice_immagine)
+
     _,ax = plt.subplots()
-    ax.imshow(matrice_immagine,cmap = 'inferno')
+    ax.imshow(matrice_immagine,cmap = 'inferno',clim = [t_lim_inf,t_lim_sup])
     ax.set(title=titolo)
     __toggle_selector.RS = RectangleSelector(ax, __onselect,
                                        drawtype='box', useblit=True,
@@ -57,8 +61,10 @@ def select_line(matrice_immagine,titolo='Immagine'):
     output:
         (xi,yi,dx,dy)
     '''
+    (t_lim_inf,t_lim_sup)=set_cmap(matrice_immagine)
+
     _,ax = plt.subplots()
-    ax.imshow(matrice_immagine)
+    ax.imshow(matrice_immagine,clim = [t_lim_inf,t_lim_sup])
     ax.set(title=titolo)
 
     __toggle_selector.RS = RectangleSelector(ax, __onselect,
@@ -78,8 +84,9 @@ def selectROI_ellipse(matrice_immagine,titolo='Immagine'):
     output:
         (x1,y1,x2,y2)
     '''
+    (t_lim_inf,t_lim_sup)=set_cmap(matrice_immagine)
     _,ax = plt.subplots()
-    ax.imshow(matrice_immagine)
+    ax.imshow(matrice_immagine,clim = [t_lim_inf,t_lim_sup])
     ax.set(title=titolo)
     __toggle_selector.ES = EllipseSelector(ax, __onselect,
                                        drawtype='box', useblit=True,
@@ -119,7 +126,44 @@ def interactive_cmap(matrice_immagine,titolo='Immagine'):
     plt.show()
     return (cmap_lim_inf,cmap_lim_sup)
 
+def __onclick(event):
+    "onclick are matplotlib events at press and release."
+    x, y = event.xdata, event.ydata
+    global cordinate_punto
+    cordinate_punto = [int(x),int(y)]
 
+
+def selectROI_point(fig,ax,titolo='Immagine'):
+    ''' 
+    input:
+        image matrix
+    output:
+        (x1,y1,x2,y2)
+    '''
+    ax.set(title=titolo)    
+    Cursor(ax,horizOn=True,vertOn=True, color='red', linewidth=2)
+    fig.canvas.mpl_connect('button_press_event',__onclick)
+
+    plt.show()
+    return cordinate_punto
+
+def set_cmap(image,p_sup = 0.96,p_inf = 0.4):
+    p_sup = 0.96 # [%] dei valori limite sup
+    p_inf = 0.4
+    N = image.size
+    istogramma = np.zeros(N)
+    istogramma = np.sort(np.reshape(image,N))
+    t_lim_sup = istogramma[int(p_sup*N)]
+    t_lim_inf = istogramma[int(p_inf*N)]
+    return (t_lim_inf,t_lim_sup)
+
+
+def list_all_files(path_dir,ext='.npy'):
+    list_file = []
+    for file in os.listdir(path_dir):
+        if file.endswith(ext):
+            list_file.append(os.path.join(path_dir, file))
+    return list_file
 
 if __name__ == '__main__':
     print('Modulo per roi interattiva')
