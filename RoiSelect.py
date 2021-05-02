@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from matplotlib.widgets import RectangleSelector,Button,EllipseSelector,Slider,Cursor
+from scipy import ndimage
 
 cordinate = (0,0,0,0)
 cordinate_punto = [0,0]
@@ -31,17 +32,35 @@ def __update(cmap_lim_inf,cmap_lim_sup,AxesImage,fig):
         AxesImage.set_clim([lim_inf,lim_sup])
     fig.canvas.draw_idle()
 
-def selectROI(matrice_immagine,titolo='Immagine'):
+def selectROI(matrice_immagine,titolo='Immagine',contour_plot_flag:bool = False):
     ''' 
     input:
         ax --> axis su cui fare la selezione della roi
     output:
         (xi,yi,dx,dy)
     '''
-    (t_lim_inf,t_lim_sup)=set_cmap(matrice_immagine)
 
+    (t_lim_inf,t_lim_sup)=set_cmap(matrice_immagine)
     _,ax = plt.subplots()
-    ax.imshow(matrice_immagine,cmap = 'inferno',clim = [t_lim_inf,t_lim_sup])
+
+    if contour_plot_flag:
+        alpha = 0.5
+        matrice_immagine = matrice_immagine.copy()
+        (dx,dy) = matrice_immagine.shape
+        N = dx*dy
+        istogramma = np.zeros(N)
+        istogramma = np.sort(np.reshape(matrice_immagine,N))
+        footprint = np.matrix([[1,1,1],[1,2,1],[1,1,1]])
+        levels = [istogramma[int(0.2*N)],istogramma[int(0.6*N)],istogramma[int(0.8*N)],istogramma[int(0.9*N)],istogramma[int(0.95*N)]]
+
+        matrice_immagine = ndimage.gaussian_filter(matrice_immagine,sigma=2)
+        matrice_immagine = ndimage.grey_erosion(matrice_immagine,footprint=footprint)
+        matrice_immagine = ndimage.grey_dilation(matrice_immagine,footprint=footprint)
+        CS = ax.contour(np.arange(dy),np.arange(dx),matrice_immagine,levels,cmap = 'inferno')
+        ax.clabel(CS, inline=True, fontsize=10)
+    else:
+        alpha = 1
+    ax.imshow(matrice_immagine,cmap = 'inferno',clim = [t_lim_inf,t_lim_sup],alpha = alpha)
     ax.set(title=titolo)
     __toggle_selector.RS = RectangleSelector(ax, __onselect,
                                        drawtype='box', useblit=True,
@@ -130,7 +149,7 @@ def __onclick(event):
     "onclick are matplotlib events at press and release."
     x, y = event.xdata, event.ydata
     global cordinate_punto
-    cordinate_punto = [int(x),int(y)]
+    cordinate_punto = (int(x),int(y))
 
 
 def selectROI_point(fig,ax,titolo='Immagine'):

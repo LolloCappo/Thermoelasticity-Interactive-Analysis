@@ -1,6 +1,12 @@
 import numpy as np 
 import matplotlib.pyplot as plt
 
+class Laminato:
+    def __init__(self,lamianto,meta):
+        self.__lamianto = Laminato
+        self.__lamianto_meta = meta
+        self.__A,self.__B,self.__C,self.__thinkess = get_laminate(laminato)
+
 def Q_ply(ply,th=0, fabric = False):
     ''' Stress =[Q]*strain
     '''
@@ -39,12 +45,12 @@ def S_ply(ply,th=0):
     S = np.dot(Te1,np.dot(S,Ts))
     return  S
 
-def get_laminate(laminato,Compliance:bool = False):
-    '''
+def get_laminate(laminato:dict,Compliance:bool = False):
+    ''' [N,M]^T = [[A,B],[B,D]] [e,k]^T where N = [Nx,Ny,T],M = [Mx,My,Mt]
     input:
     - laminato : dict {'s': [mm],'Ex':[Mpa],'Ey':[Mpa],'G':[Mpa],'v':[add],'fabric':[bool]}
     output:
-    - A,B,D or - Compliance = [[A,B],[B,D]]
+    - A,B,D or - Compliance = [[A,B],[B,D]] 
     '''
     s = 0
     for lamina in laminato: # definisco lo Spessore
@@ -72,7 +78,7 @@ def get_compliance(A,B,D):
     temp_inf = np.concatenate((B,D), axis =1)
     return np.concatenate((temp_sup,temp_inf))
 
-def get_engineering_constants(Q,s=0):
+def get_engineering_constants(Q,s:float=0):
     ''' input  Stress =[Q]*strain
     '''
     (n,_) = Q.shape
@@ -111,6 +117,7 @@ def main():
         E_l = i['Ex']*i['s']
         E_t = i['Ey']*i['s']
         s += i['s']
+    print(s)
     E_l = E_l/s
     print(E_l)
     print(E_t)
@@ -140,11 +147,15 @@ def main():
     print('--------------------------------')
     #test = {'s': 0.05,'Ex':117.5*10**3,'Ey':9.8*10**3,'G':9.8*10**3,'v':0.3,'fabric': False,'theta':0}
     #laminato = [test,test]
-    laminato = [rc_200,rc_400]
+    #laminato = [rc_200,rc_400]
 
+    laminato = [rc_200,rc_400,xc_400,uc_300,uc_300,uc_300,rc_400,uc_300,uc_300,uc_300,xc_400,rc_400]
+    #laminato.reverse()
 
     A,B,D,_ = get_laminate(laminato)
-    print(get_Bending_stiffness(A,B,D))
+    #print(get_Bending_stiffness(A,B,D))
+    C = get_compliance(A,B,D)
+    C1 = np.linalg.inv(C)
     print('- A')
     print(A)
     print('- B')
@@ -153,6 +164,8 @@ def main():
     print(D)
     t = s
     print(D[0,0]/(t**3/12))
+    forza = np.array([100,0,0,0,0,0])
+    print(np.dot(C1,forza))
 
 if __name__ ==  "__main__":
     main()
