@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 # \dma\CFRP_0.5N encoding = 'cp1252' engine='python' skipfooter =1 decimal= ","
 
-def estrai(path_base,N,name = None,nrows = 20):
+def estrai(path_base,N,name = None,nrows = 20,normalizza=False,s=1):
     if name == None:
         name = f'_{np.arange(1,N+1)}'
     else:
@@ -22,7 +22,14 @@ def estrai(path_base,N,name = None,nrows = 20):
         df = df.head(nrows)
         data = pd.merge(data,df[keys],how='outer')
     data = data.set_index(['test'])
+    data['tan_delta'] = data['tan_delta'].abs()
     data['csi'] = ottieni_smorazamento(data['tan_delta'])
+    data['Stifness'] = data['F']/(data['x']*1000)
+    print(f"spostamento di {path_base} massimo {data['x'].max()/1000 } [mm]")
+    if normalizza:
+        data['M*'] =  data['M*']/s#*(s**3/12)
+        data['M'] =  data['M']/s#*(s**3/12)
+        data['M\''] =  data['M\'']/s#*(s**3/12)
     return data
 
 def plottaggio(data,ax1,ax2,label='test',f_min=0,f_max=None,name = None,flag_colore = 0,label_colore = 'dietro',flag_title:bool = False,loss_factor:bool = False):
@@ -57,7 +64,6 @@ def plottaggio(data,ax1,ax2,label='test',f_min=0,f_max=None,name = None,flag_col
             else:
                 label_temp = f'test {label}'
                 colore = 'darkred'
-            
         data.loc[name[i]].plot.scatter(x='f',y='M*',ax = ax1,label=label_temp,color='none',edgecolors = colore)
         data.loc[name[i]].plot.scatter(x='f',y=name_fact,ax = ax2,label=label_temp,color='none',edgecolors = colore)
         M_media += data.loc[name[i]]['M*'].to_numpy()/(N)
@@ -74,22 +80,42 @@ def plottaggio(data,ax1,ax2,label='test',f_min=0,f_max=None,name = None,flag_col
     ax1.plot(f,M_media,label='media',color = colore_media)
     #ax1.plot(f,M_media_el,label='modulo in fase',color = 'r')   
     #ax1.plot(f,M_media_los,label='modulo viscoso',color = 'b')   
-   
+    ax1.grid()
+    ax2.grid()
     ax2.plot(f,tan_media,label='media',color = colore_media)
     if flag_title:
         ax1.set(title='M*')
         ax2.set(title=name_fact)
     return (M_media,tan_media)
 
+def dispersione(data,ax,f_min = 0,f_max = None,label='',flag=True):
+    names = pd.Series(data.index.values).unique() # da rivedere
+    N = len(names)
+    if f_max == None:
+        f_max = data.loc[names[0]]['f'][-1]
+
+    std = 2*data[['f','M*']].groupby(['f']).std() # non campionaria a 
+    M_mean = data['M*'].mean()
+    ax.plot(data.loc[names[0]]['f'],std['M*']/M_mean)
+
+
+    ax.set(title='(2*std)/mean M* per '+label)
+
+
 def ottieni_smorazamento(loss_factor):
     delta = (1-np.sqrt(1-loss_factor**2))*2*np.pi/loss_factor
     csi = delta/np.sqrt((2*np.pi)**2 + delta**2)
     return csi
 
-def media_smoramento(data,f_lim):
+def media(data,f_lim):
     csi_mean = data[data['f']>f_lim]['csi'].mean()
-    M_mean = data[data['f']>f_lim]['M*'].mean()
+    M_mean = data[data['f']>f_lim]['M*'].mean()    
     return csi_mean,M_mean
+
+def std(data,f_lim):
+    csi_std = data[data['f']>f_lim]['csi'].std()
+    M_std = data[data['f']>f_lim]['M*'].std()    
+    return csi_std,M_std
 
 def main():
     name = []

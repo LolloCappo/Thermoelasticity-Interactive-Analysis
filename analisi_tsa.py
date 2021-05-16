@@ -1,41 +1,45 @@
 import numpy as np
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.animation as animation 
 from matplotlib.widgets import Slider
-
+import matplotlib.patches as mpatches
 from scipy import ndimage
 
 import pysfmov
 from scipy.io import loadmat
+from numba import jit
 
 class TSA:
     def __init__(self,fa:float,file_path='data.mat',video_npy = False,flag_npy = False):
-        ''' Nota. il video è un oggetto numpy ed è utilizzato è organizzato come (x,y,t)
+        ''' Nota. il video utilizzato nella classe è memerizzato come un oggetto numpy
+         in formato (x,y,t)
         '''
         self.__file_path = file_path
         if flag_npy:
-            self.finestra_video = video_npy
+            self.video = video_npy
         else:
             if file_path[-3:] == 'mat': # rivedi fai con funzione di Os!
-                self.finestra_video = loadmat(file_path,squeeze_me = True)['video']
+                self.video = loadmat(file_path,squeeze_me = True)['video']
             elif file_path[-5:] == 'sfmov':
                 print(file_path)
-                self.finestra_video = np.moveaxis(pysfmov.get_data(self.__file_path),0,-1) # (t,x,y) => (x,y,t)
+                self.video = np.moveaxis(pysfmov.get_data(self.__file_path),0,-1) # (t,x,y) => (x,y,t)
                 print(pysfmov.get_meta_data(self.__file_path))
             elif file_path[-3:] == 'npy':
-                self.finestra_video = np.load(file_path)
+                self.video = np.load(file_path)
             else:
                 print('** Path non valido') # devi da errore
         # Dati
         self.__fa = fa # f acquiszione Hz
         self.__fr = 0 # f riferimento corretta Hz
-        (self.__dx,self.__dy,self.__N) = self.finestra_video.shape
-        self.finestra_video_roi_offset = self.finestra_video[:,:,0].copy()
-        self.finestra_video_roi = np.zeros([self.__dx,self.__dy,self.__N])
-        self.finestra_video_roi_mask = np.ones([self.__dx,self.__dy])
+        (self.__dx,self.__dy,self.__N) = self.video.shape
+        self.video_roi_offset = self.video[:,:,0].copy()
+        self.video_roi = np.zeros([self.__dx,self.__dy,self.__N])
+        self.video_roi_mask = np.ones([self.__dx,self.__dy])
         self.map_amplitude = np.empty([self.__dx,self.__dy])
         self.map_phase = np.empty([self.__dx,self.__dy])
+        self.__phase_offset = 0
         # utilità
         self.__cordinate_roi = (0,0,self.__dx,self.__dy)
         (self.__dx_roi,self.__dy_roi,self.__N_roi) = (self.__dx,self.__dy,self.__N)
@@ -45,19 +49,21 @@ class TSA:
         self.__df = 0 # banda filtro Hz
         self.__tag_analysis = False # analisi svolta? [true/false]
         self.__tag_roi = False # roi selezionata? [true/false] 
-        # temp
-        self.__phase_offset = 0
-
     
     def __repr__(self):
         return f"Video per TSA:'{self.__file_path}'\nfa [Hz] = {self.__fa} , fr [Hz] = {str(self.__fr)}, df [Hz] = {str(self.__df)}"
 
-    def freq_detection(self,fr,xi=0,yi=0,xf=0,yf=0,df = 4,view = False):
+    def freq_detection(self,fr,xi=0,yi=0,xf=0,yf=0,df = 4,k_scale = 0.3,view = False):
         '''
+        Input:
             (xi,yi) --> coordinate del vertice rettangolo [pixel]
             (xf,yf) --> coordinate del vertice opposto rettangolo [pixel]
             fr --> frequenza di riferimento [Hz]
             df --> banda di senisibiltà attorno fr [Hz]
+            k_scale --> fattore di scala sul massimo per i picchi coniderati
+        Output:
+            fr --> fr compensata
+            phase_offset --> offset di fase
         '''
         if xf == 0 or xf == None:
             xf = self.__dx_roi
@@ -71,18 +77,17 @@ class TSA:
             if df:                
                 ni = int(self.__N_roi%(self.__fa/self.__fr)) # riduco leakage
                 N = self.__N_roi-ni
-                roi_detection = self.finestra_video_roi[xi:xi+dx,yi:yi+dy,ni:].copy()
+                roi_detection = self.video_roi[xi:xi+dx,yi:yi+dy,ni:].copy()
                 n_lim = (np.array([fr-df/2,fr+df/2])*(N/self.__fa)).astype(int)
                 signal = np.zeros(N)
                 f = (self.__fa/N)*np.arange((N)//2+1)
                 time = (1/self.__fa)*np.arange(N)
-                N_media = np.count_nonzero(self.finestra_video_roi_mask[xi+dx,yi+dy]) #dx*dy
+                N_media = np.count_nonzero(self.video_roi_mask[xi+dx,yi+dy]) #dx*dy
                 for x in range(dx): # media
                     for y in range(dy):
-                        if self.finestra_video_roi_mask[xi+x,yi+y] == 1:
+                        if self.video_roi_mask[xi+x,yi+y] == 1:
                             signal[:] += roi_detection[x,y,:]/N_media
                 S_fft = np.abs(np.fft.rfft(signal)/N)
-                k_scale = 0.3
                 n_list = get_local_max(S_fft[n_lim[0]:n_lim[1]],k_scale=k_scale) + n_lim[0]
                 flag_max = False
                 if n_list.size == 1:
@@ -114,20 +119,15 @@ class TSA:
 
                 #print(n*(self.__fa/N))
                 self.__fr = (self.__fa/N)*(2*S_fft[n]*n+S_fft[n-1]*(n-1)+S_fft[n+1]*(n+1))/(2*S_fft[n]+S_fft[n-1]+S_fft[n+1])
-                wr = self.__fr*(2*np.pi)
-                SgnSF = np.sin(wr*time)*signal
-                SgnSG = np.cos(wr*time)*signal
-                sf = np.abs(np.mean(SgnSF)*2)
-                sg = np.abs(np.mean(SgnSG)*2)
-                fase_picco = np.arctan2(sg,sf)
-                self.__phase_offset = fase_picco
+                phase_map = np.empty((dx,dy))
+                _,phase_map = lockin_2D(roi_detection,np.ones([dx,dy]),self.__fa,self.__fr)
+                self.__phase_offset = np.percentile(phase_map,50)
                 print(f"frequenza di carico compensata : {self.__fr} [Hz] con df = 1/T = {self.__fa/self.__N_roi} e angolo di fase th = {self.__phase_offset*(180/np.pi)}")
                 return self.__fr,_,self.__phase_offset
 
             else: 
                 print(' roi compensazione non valida')
                 self.__fr_original = fr
-
 
     def set_ROI(self,xi,yi,xf,yf,ni = 0,view = False): # aggiungi controllo se xi None
         ''' Seleziono la ROI su cui fare l'analisi TSA
@@ -143,48 +143,50 @@ class TSA:
         if xi+dx <= self.__dx and yi+dy <= self.__dy and xi >= 0 and yi >= 0 and dx>0 and dy>0:
             self.__cordinate_roi = (xi,yi,xf,yf)
             (self.__dx_roi,self.__dy_roi) = (dx,dy)
-            self.finestra_video_roi = self.finestra_video[xi:xi+dx,yi:yi+dy,:].copy()
-            self.finestra_video_roi_offset = self.finestra_video[xi:xi+dx,yi:yi+dy,0].copy()
-            self.finestra_video_roi_mask = np.ones((self.__dx_roi,self.__dy_roi))
+            self.video_roi = self.video[xi:xi+dx,yi:yi+dy,:].copy()
+            self.video_roi_offset = self.video[xi:xi+dx,yi:yi+dy,0].copy()
+            self.video_roi_mask = self.video_roi_mask[xi:xi+dx,yi:yi+dy]
         else:
             print('Roi non impostata')
             (dx,dy) = (self.__dx,self.__dy)
-            self.finestra_video_roi = self.finestra_video.copy()
-            self.finestra_video_roi_offset = np.zeros([dx,dy])
-        #plt.imshow(self.finestra_video_roi_offset)
+            self.video_roi = self.video.copy()
+            self.video_roi_offset = np.zeros([dx,dy])
+        #plt.imshow(self.video_roi_offset)
         #plt.show()
         for x in range(dx):
             for y in range(dy):
-                self.finestra_video_roi_offset[x,y] =  self.finestra_video_roi[x,y,0].copy() #matrice_temporanea[x,y,0]
-                self.finestra_video_roi[x,y,:] += - self.finestra_video_roi_offset[x,y] #np.mean(matrice_temporanea[x,y,:])
+                self.video_roi_offset[x,y] =  self.video_roi[x,y,0].copy() #matrice_temporanea[x,y,0]
+                self.video_roi[x,y,:] += - self.video_roi_offset[x,y] #np.mean(matrice_temporanea[x,y,:])
         if view:
             fig_1 = plt.figure(constrained_layout=True)
             spec_1 = fig_1.add_gridspec(1,2)
             ax_0 = fig_1.add_subplot(spec_1[0,0])
             ax_0.set(title='Frame originale')
-            ax_0.imshow(self.finestra_video[:,:,1])
+            ax_0.imshow(self.video[:,:,1])
             rect = patches.Rectangle((yi,xi),dy,dx,linewidth=1,edgecolor='r',facecolor='none') # ricorda verso immagine e verso matrice
             ax_0.add_patch(rect)
             ax_1 = fig_1.add_subplot(spec_1[0,1])
-            ax_1.imshow(self.finestra_video_roi[:,:,1]+self.finestra_video_roi_offset)
+            ax_1.imshow(self.video_roi[:,:,1]+self.video_roi_offset)
             ax_1.set(title='Finestra ROI f(x,y,t = 0)')
             plt.show()
 
     def set_hole(self,x1,y1,x2,y2,reset=True):
         if reset:
-            self.set_ROI(*self.__cordinate_roi) # da gesti meaglio
-        a = (x2 - x1)/2
-        b = (y2 - y1)/2
-        x_0 = (x2 + x1)/2
-        y_0 = (y2 + y1)/2
-        self.__N_ROI_hole = 0
-        for x in range(int(2*a)+1):
-            for y in range(int(2*b)+1):
-                if ((x+x1+1/2-x_0)/a)**2+((y1+y+1/2-y_0)/b)**2 <= 1:
-                    self.finestra_video_roi_mask[x+x1,y+y1] = 0
+            self.video_roi_mask = np.ones([self.__dx_roi,self.__dy_roi])            
+        dx = x2-x1
+        dy = y2-y1
+        if x1+dx <= self.__dx_roi and y1+dy <= self.__dy_roi and x1 >= 0 and y1 >= 0 and dx>0 and dy>0:
+            a = (x2 - x1)/2
+            b = (y2 - y1)/2
+            x_0 = (x2 + x1)/2
+            y_0 = (y2 + y1)/2
+            for x in range(int(2*a)+1):
+                for y in range(int(2*b)+1):
+                    if ((x+x1+1/2-x_0)/a)**2+((y1+y+1/2-y_0)/b)**2 <= 1:
+                        self.video_roi_mask[x+x1,y+y1] = 0
 
-    #@jit(nopython=True)
-    def lockin(self,fr=None,view = False,t_lim_inf = None,t_lim_sup = None):
+
+    def lockin(self,fr=None,phase_offset=None,view = False,t_lim_inf = None,t_lim_sup = None):
         ''' Ottengo la mappa di modulo e fase, tramite lock-in.
         fr --> frequenza di carico [Hz]
         view --> attiva o meno la visualizzazione delle mappe
@@ -196,44 +198,28 @@ class TSA:
         if fr:
             self.__fr = fr
             self.__fr_original = fr
+        if phase_offset is not None:
+            self.__phase_offset = phase_offset
         print(f'* lockin a fr = {self.__fr}')
         if not(self.__tag_roi):
             self.set_ROI(0,0,self.__dx,self.__dy)
         self.__tag_analysis = True
         # dati
-        wr = (2*np.pi)*self.__fr
-        Ix = np.empty([self.__dx_roi,self.__dy_roi])
-        Iy = np.empty([self.__dx_roi,self.__dy_roi])
-        t = (1/self.__fa)*np.arange(self.__N_roi)
-        SgnF = np.sin(wr*t+self.__phase_offset+np.pi)
-        SgnG = np.cos(wr*t+self.__phase_offset+np.pi)
-        for x in range(self.__dx_roi):
-            for y in range(self.__dy_roi):
-                if self.finestra_video_roi_mask[x,y]:
-                    Ix[x,y] = np.mean(self.finestra_video_roi[x,y,:]*SgnF) 
-                    Iy[x,y] = np.mean(self.finestra_video_roi[x,y,:]*SgnG)
-                else:
-                    Ix[x,y] = 0
-                    Iy[x,y] = 0
-        self.map_amplitude = 2*np.sqrt(Ix**2 + Iy**2)
-        self.map_phase = np.arctan2(Iy,Ix)*(180/np.pi)
+        self.map_amplitude,self.map_phase = lockin_2D(self.video_roi,self.video_roi_mask,self.__fr,self.__fa,phase_offset=self.__phase_offset)
+        self.map_phase *= (180/np.pi)
         if view:
             self.view_result(t_lim_inf,t_lim_sup)        
         return self.map_amplitude,self.map_phase
 
-    def view_result(self,t_lim_inf = None,t_lim_sup = None,interactive = False,save=False,path=''):
+    def view_result(self,t_lim_inf = None,t_lim_sup = None,interactive = False,save=False,path='',name_file=''):
         ''' Visualizza area selezionata o la mappa del modulo e fase
         '''
-        # definisco i limiti
-        p_sup = 0.96 # [%] dei valori limite sup
-        p_inf = 0.1
-        N = self.__dx_roi*self.__dy_roi
-        istogramma = np.zeros(N)
-        istogramma = np.sort(np.reshape(self.map_amplitude,N))
+
+        t_lim_inf_temp,t_lim_sup_temp = set_clim(self.map_amplitude)
         if t_lim_sup is None:
-            t_lim_sup = istogramma[int(p_sup*N)]
+            t_lim_sup = t_lim_sup_temp
         if t_lim_inf is None:
-            t_lim_inf = istogramma[int(p_inf*N)]
+            t_lim_inf = t_lim_inf_temp
 
         if interactive:
             (t_lim_inf,t_lim_sup) = interactive_cmap(self.map_amplitude,titolo = 'Mappa modulo',lim_inf=t_lim_inf,lim_sup=t_lim_sup)
@@ -257,50 +243,63 @@ class TSA:
             ax_1.set(title=f'fase [deg]')
             theta_offset = self.__phase_offset
             if save:
-                plt.savefig(path+f'fa{self.__fa}_fr{self.__fr:.{2}f}.png')
+                if name_file == '':
+                    name_file = f'fa{self.__fa}_fr{self.__fr:.{2}f}'
+                plt.savefig(path+name_file+'.png')
             else:
                 plt.show()
         return (t_lim_inf,t_lim_sup,theta_offset)
+
+    def save(self,path = '',name_file=''):
+        ''' save 
+        '''
+        if name_file == '':
+            name_file = f'fa{self.__fa}_fr{self.__fr:.{2}f}'
+        self.view_result(save=True,path=path,name_file=name_file)
+        np.save(path + name_file +'.npy',np.array([self.map_amplitude,self.map_phase]))
+
     
-    def view_result_coutour_plot(self,levels = []):
+    def view_result_coutour_plot(self,sigma=1.5,levels = []):
         N = self.__dx_roi*self.__dy_roi
         istogramma = np.zeros(N)
         istogramma = np.sort(np.reshape(self.map_amplitude,N))
         if not levels:
             levels = [istogramma[int(0.2*N)],istogramma[int(0.5*N)],istogramma[int(0.65*N)],istogramma[int(0.80*N)],istogramma[int(0.95*N)]]
         mappa = self.map_amplitude.copy()
-        #footprint = ndimage.generate_binary_structure(2, 1)
         footprint = np.matrix([[1,1,1],[1,2,1],[1,1,1]])
 
-        mappa = ndimage.gaussian_filter(mappa,sigma=3)
-        mappa = ndimage.grey_erosion(mappa,footprint=footprint)
+        mappa = ndimage.gaussian_filter(mappa,sigma=sigma)
         mappa = ndimage.grey_dilation(mappa,footprint=footprint)
-        mappa = np.flip(mappa, axis=1)
+        mappa = ndimage.grey_erosion(mappa,footprint=footprint)
         _,ax= plt.subplots(figsize=(15*self.__dy_roi/(self.__dx_roi+self.__dy_roi),15*self.__dx_roi/(self.__dx_roi+self.__dy_roi)))
         ax.imshow(mappa,cmap = 'inferno',alpha=0.5)
         CS = ax.contour(np.arange(self.__dy_roi),np.arange(self.__dx_roi),mappa,levels,cmap = 'inferno')
         ax.clabel(CS, inline=True, fontsize=10)
         plt.show()
         # phase
-        mappa = ndimage.gaussian_filter(np.abs(self.map_phase.copy()),sigma=3)
-        mappa = ndimage.grey_erosion(mappa,footprint=footprint)
-        mappa = ndimage.grey_dilation(mappa,footprint=footprint)
-        mappa = np.flip(mappa, axis=1)
-        _,ax= plt.subplots()
-        levels = [50,100,140,170]
-        CS = ax.contour(np.arange(self.__dy_roi),np.arange(self.__dx_roi),np.flip(self.map_phase, axis=0),levels,cmap = 'inferno')
-        ax.imshow(np.abs(mappa),cmap = 'inferno',alpha=0.5)
-        ax.clabel(CS, inline=True, fontsize=10)
-        plt.show()
-
-    
+        #mappa = ndimage.gaussian_filter(np.abs(self.map_phase.copy()),sigma=3)
+        #mappa = ndimage.grey_erosion(mappa,footprint=footprint)
+        #mappa = ndimage.grey_dilation(mappa,footprint=footprint)
+        #mappa = np.flip(mappa, axis=1)
+        #_,ax= plt.subplots()
+        #levels = [50,100,140,170]
+        #CS = ax.contour(np.arange(self.__dy_roi),np.arange(self.__dx_roi),np.flip(self.map_phase, axis=0),levels,cmap = 'inferno')
+        #ax.imshow(np.abs(mappa),cmap = 'inferno',alpha=0.5)
+        #ax.clabel(CS, inline=True, fontsize=10)
+        #plt.show()
+   
     def view(self,t_lim_inf = None,t_lim_sup = None): 
         ''' Visualizza finestra corrente
             t_lim_inf --> limite inf color bar
             t_lim_sup --> limite sup color bar
         '''
+        t_lim_inf_temp,t_lim_sup_temp = set_clim(self.video_roi_offset)
+        if t_lim_sup is None:
+            t_lim_sup = t_lim_sup_temp
+        if t_lim_inf is None:
+            t_lim_inf = t_lim_inf_temp
         _,ax = plt.subplots()
-        temp = ax.imshow(self.finestra_video[:,:,1],cmap = 'inferno',clim = [t_lim_inf,t_lim_sup])
+        temp = ax.imshow(self.video[:,:,1],cmap = 'inferno',clim = [t_lim_inf,t_lim_sup])
         plt.colorbar(temp,orientation = 'vertical',fraction = 0.5)
         plt.show()
 
@@ -317,7 +316,7 @@ class TSA:
             map_std = np.empty([dx,dy])
             for x in range(dx):
                 for y in range(dy):
-                    map_std[x,y] = np.std( self.finestra_video_roi[x,y,:])
+                    map_std[x,y] = np.std( self.video_roi[x,y,:])
         plt.imshow(map_std,cmap = 'inferno')
         plt.show  
         return map_std
@@ -328,11 +327,11 @@ class TSA:
         temp = []
         if ROI and self.__tag_roi:
             for i in range(self.__N_roi):
-                temp = plt.imshow(self.finestra_video_roi[:,:,i]+self.finestra_video_roi_offset,cmap = 'inferno', animated=True)
+                temp = plt.imshow(self.video_roi[:,:,i]+self.video_roi_offset,cmap = 'inferno', animated=True)
                 ims.append([temp])
         else:
             for i in range(self.__N):
-                temp = plt.imshow(self.finestra_video[:,:,i],cmap = 'inferno', animated=True)
+                temp = plt.imshow(self.video[:,:,i],cmap = 'inferno', animated=True)
                 ims.append([temp])
         animation.ArtistAnimation(fig, ims, interval=50, blit=True,repeat_delay=100)
         plt.show()
@@ -342,7 +341,7 @@ class TSA:
         '''
         dx = (xf-xi)
         dy = (yf-yi)
-        res = []
+        cordinate = []
         if dx != 0 and dy != 0:
             u = np.arange(int(dx*dy))/int(dx*dy)
         elif dx != 0:
@@ -352,16 +351,21 @@ class TSA:
         for i in range(int(dx*dy)):
             x_v = xi + dx*u[i]
             y_v = yi + dy*u[i]
-            if not([int(x_v),int(y_v)] in res):
-                res.append([int(x_v),int(y_v)])
-        res_2 = []
-        for i in res:
-            res_2.append(self.map_amplitude[i[0],i[1]])
+            if not([int(x_v),int(y_v)] in cordinate):
+                cordinate.append([int(x_v),int(y_v)])
+        value_line = []
+        for i in cordinate:
+            value_line.append(self.map_amplitude[i[0],i[1]])
         if view:
-            plt.plot(res_2)
-            plt.plot(np.mean(res_2)*np.ones(len(res_2)))
+            t_lim_inf,t_lim_sup = set_clim(self.map_amplitude)
+            fig,ax = plt.subplots(1,2)
+            ax[0].imshow(self.map_amplitude,cmap = 'inferno',clim = [t_lim_inf,t_lim_sup])
+
+
+            ax[1].plot(value_line)
+            ax[1].plot(np.mean(value_line)*np.ones(len(cordinate)))
             plt.show()
-        return res_2     
+        return value_line     
 
     def get_freq(self):
         return self.__fr
@@ -370,14 +374,16 @@ class TSA:
         return self.map_amplitude,self.map_phase
 
     def get_window(self):
-        return self.finestra_video
+        return self.video
 
     def get_roi(self):
-        return self.finestra_video_roi[:,:,1]
+        return self.video_roi[:,:,1]
 
     def get_roi_offset(self):
-        return self.finestra_video_roi_offset[:,:,1]
-    
+        return self.video_roi_offset
+        
+# funzioni per l'utilità
+
 def __update(cmap_lim_inf,cmap_lim_sup,AxesImage,fig):
     lim_inf = cmap_lim_inf.val
     lim_sup = cmap_lim_sup.val
@@ -406,7 +412,6 @@ def intercative_phase(matrice_immagine,titolo='Immagine'):
     slider_lim.on_changed(lambda temp: __update_phase(slider_lim,ax,fig,matrice_immagine))
     plt.show()
     return  slider_lim.val
-
 
 def interactive_cmap(matrice_immagine,titolo='Immagine',lim_inf=None,lim_sup=None):
     ''' 
@@ -448,7 +453,10 @@ def get_local_max(signal,k_scale = 0.5):
     n_max = np.array(n_max,dtype=int)
     n_max = n_max[np.argsort(value_max)]
     value_max = np.sort(value_max)
-    return n_max[value_max>(k_scale*signal[n_max[-1]])]
+    if n_max.size == 0:
+        return n_max
+    else:
+        return n_max[value_max>(k_scale*signal[n_max[-1]])]
 
 def taglio_video(analysis_object,xi,yi,xf,yf,view=False,save_path = 'data'):
     ''' Permette di selezionare una regione d'interesse rettangolare su cui svolgere l'analisi
@@ -468,6 +476,44 @@ def taglio_video(analysis_object,xi,yi,xf,yf,view=False,save_path = 'data'):
             plt.show()
     else:
         print('Finestra non valida')
+
+@jit(nopython=True)
+def lockin_2D(video_roi,video_roi_mask,fr,fa,phase_offset=0):
+    (dx_roi,dy_roi,N_roi) = video_roi.shape
+    wr = (2*np.pi)*fr
+    Ix = np.zeros((dx_roi,dy_roi))
+    Iy = np.zeros((dx_roi,dy_roi))
+    t = (1/fa)*np.arange(N_roi)
+    SgnF = np.sin(wr*t-phase_offset)
+    SgnG = np.cos(wr*t-phase_offset)
+    for x in range(dx_roi):
+        for y in range(dy_roi):
+            if video_roi_mask[x,y]:
+                Ix[x,y] = np.mean(video_roi[x,y,:]*SgnF) 
+                Iy[x,y] = np.mean(video_roi[x,y,:]*SgnG)
+            else:
+                Ix[x,y] = 0
+                Iy[x,y] = 0
+    map_amplitude = 2*np.sqrt(Ix**2 + Iy**2)
+    map_phase = np.arctan2(Iy,Ix)
+    return map_amplitude,map_phase
+
+@jit(nopython=True)
+def lockin_1D(signal,fr,fa):
+    time = (1/fa)*np.arange(len(signal))
+    wr = fr*(2*np.pi)
+    SgnSF = np.sin(wr*time)*signal
+    SgnSG = np.cos(wr*time)*signal
+    sf = np.abs(np.mean(SgnSF)*2)
+    sg = np.abs(np.mean(SgnSG)*2)
+    return np.sqrt(sf**2+sg**2),np.arctan2(sg,sf)
+
+def set_clim(matrix,p_sup = 0.96,p_inf = 0.1):
+    (dx,dy) = matrix.shape
+    N = dx*dy
+    istogramma = np.zeros(N)
+    istogramma = np.sort(np.reshape(matrix,N))
+    return istogramma[int(p_inf*N)],istogramma[int(p_sup*N)]
 
 
 def main():

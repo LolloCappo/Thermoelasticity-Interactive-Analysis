@@ -83,7 +83,7 @@ def select_line(matrice_immagine,titolo='Immagine'):
     (t_lim_inf,t_lim_sup)=set_cmap(matrice_immagine)
 
     _,ax = plt.subplots()
-    ax.imshow(matrice_immagine,clim = [t_lim_inf,t_lim_sup])
+    ax.imshow(matrice_immagine,clim = [t_lim_inf,t_lim_sup],cmap='inferno')
     ax.set(title=titolo)
 
     __toggle_selector.RS = RectangleSelector(ax, __onselect,

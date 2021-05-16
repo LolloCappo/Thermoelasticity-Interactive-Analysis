@@ -126,11 +126,13 @@ for prova in N_prove:
             (limiti_base,limiti_picco) = seleziona_cordinate_mista(mappa)
              #(limiti_base,limiti_picco) = seleziona_cordinate_rettangolo(mappa)
         flag_selezione_roi = False # prendo solo la prima
-        if False:
-            mappa = ndimage.gaussian_filter(mappa,sigma=1)
+        if True:
+            mappa = ndimage.gaussian_filter(mappa,sigma=10)
             footprint = np.matrix([[1,1,1],[1,2,1],[1,1,1]])
-            mappa = ndimage.grey_erosion(mappa,footprint=footprint)
             mappa = ndimage.grey_dilation(mappa,footprint=footprint)
+            mappa = ndimage.grey_erosion(mappa,footprint=footprint)
+        plt.imshow(mappa)
+        plt.show()
         media_base  = np.mean(mappa[limiti_base[0]:limiti_base[1],limiti_base[2]:limiti_base[3]])
         std_base = np.std(mappa[limiti_base[0]:limiti_base[1],limiti_base[2]:limiti_base[3]])
         media_picco = np.mean(mappa[limiti_picco[0]:limiti_picco[1],limiti_picco[2]:limiti_picco[3]])

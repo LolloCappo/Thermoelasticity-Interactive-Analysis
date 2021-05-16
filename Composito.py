@@ -8,7 +8,8 @@ class Laminato:
         self.__A,self.__B,self.__C,self.__thinkess = get_laminate(laminato)
 
 def Q_ply(ply,th=0, fabric = False):
-    ''' Stress =[Q]*strain
+    ''' stiffness 
+    Stress =[Q]*strain
     '''
     if th == 0:
         th = ply['theta']
@@ -18,8 +19,10 @@ def Q_ply(ply,th=0, fabric = False):
     v_lt = ply['v']
     v_tl = v_lt*(E_t/E_l)
     if fabric:
+        #Q = np.array([[(E_l+E_t)/2,v_lt*E_t,0],[v_lt*E_t,(E_l+E_t),0],[0,0,G]])
         Q = np.array([[(E_l+E_t)/2/(1-v_lt*v_tl),v_lt*E_t/(1-v_lt*v_tl),0],[v_lt*E_t/(1-v_lt*v_tl),(E_l+E_t)/2/(1-v_lt*v_tl),0],[0,0,G]])
     else:
+        #Q = np.array([[E_l,v_lt*E_t,0],[v_lt*E_t,E_t,0],[0,0,G]])
         Q = np.array([[E_l/(1-v_lt*v_tl),v_lt*E_t/(1-v_lt*v_tl),0],[v_lt*E_t/(1-v_lt*v_tl),E_t/(1-v_lt*v_tl),0],[0,0,G]])
     m = np.cos(th*(np.pi/180))
     n = np.sin(th*(np.pi/180))
@@ -29,7 +32,8 @@ def Q_ply(ply,th=0, fabric = False):
     return  Q
 
 def S_ply(ply,th=0):
-    ''' strain=[S_k]*Stress
+    ''' compliance 
+    strain=[S_k]*Stress
     '''
     E_l = ply['Ex']
     E_t = ply['Ey']
@@ -45,16 +49,18 @@ def S_ply(ply,th=0):
     S = np.dot(Te1,np.dot(S,Ts))
     return  S
 
-def get_laminate(laminato:dict,Compliance:bool = False):
-    ''' [N,M]^T = [[A,B],[B,D]] [e,k]^T where N = [Nx,Ny,T],M = [Mx,My,Mt]
+def get_laminate(laminato:dict,concatenate:bool = False):
+    ''' stiffness  
+    [N,M]^T = [[A,B],[B,D]] [e,k]^T where N = [Nx,Ny,T],M = [Mx,My,Mt]
     input:
     - laminato : dict {'s': [mm],'Ex':[Mpa],'Ey':[Mpa],'G':[Mpa],'v':[add],'fabric':[bool]}
     output:
-    - A,B,D or - Compliance = [[A,B],[B,D]] 
+    - A,B,D or - stiffness = [[A,B],[B,D]] 
     '''
     s = 0
     for lamina in laminato: # definisco lo Spessore
         s += lamina['s']
+
     z_0 = s/2 # Cordinata piano strato
     A = np.zeros([3,3])
     B = np.zeros([3,3])
@@ -68,15 +74,31 @@ def get_laminate(laminato:dict,Compliance:bool = False):
         A += Q_k*s_k
         B += Q_k*s_k*(z_k + z_0)/2
         D += Q_k*((z_k)**3-(z_0)**3)/3
-    if Compliance:
-        return get_compliance(A,B,D),s
+    if concatenate:
+        return get_stiffness(A,B,D),s
     else:
         return A,B,D,s
 
-def get_compliance(A,B,D):
+def get_concatenate_stiffness(A,B,D):
     temp_sup = np.concatenate((A,B), axis =1)
     temp_inf = np.concatenate((B,D), axis =1)
     return np.concatenate((temp_sup,temp_inf))
+
+def get_concatenate_compliance(a,b,d):
+    temp_sup = np.concatenate((a,b), axis =1)
+    temp_inf = np.concatenate((np.transpose(b),d), axis =1)
+    return np.concatenate((temp_sup,temp_inf))
+
+def get_compliance(A,B,D,concatenate:bool = False):
+    A_1 = np.linalg.inv(A)
+    D_1 = np.linalg.inv(D)
+    a = np.linalg.inv(A - np.dot(B,np.dot(D_1,B)))
+    b = -np.dot(a,np.dot(B,D_1))
+    d = np.linalg.inv(D - np.dot(B,np.dot(A_1,B)))
+    if concatenate:
+        return get_concatenate_compliance(a,b,d)
+    else:
+        return a,b,d
 
 def get_engineering_constants(Q,s:float=0):
     ''' input  Stress =[Q]*strain
@@ -87,18 +109,24 @@ def get_engineering_constants(Q,s:float=0):
     v = 0
     stress_x = np.zeros((n,1))
     stress_y = np.zeros((n,1))
+    stress_t = np.zeros((n,1))
+
     stress_x[0] = 1
     stress_y[1] = 1
+    stress_t[2] = 1
 
     Stain_x = np.linalg.solve(Q,stress_x)
     Ex = stress_x[0]/Stain_x[0]
     v = - Stain_x[1]/Stain_x[0]
     Stain_y = np.linalg.solve(Q,stress_y)
     Ey = stress_y[1]/Stain_y[1]
+    Stain_t = np.linalg.solve(Q,stress_t)
+    Gxy = 1/Stain_t[2]
+
     if s != 0:
         Ex = Ex/s        
         Ey = Ey/s
-    return float(Ex),float(Ey),float(v)
+    return float(Ex),float(Ey),float(v),float(Gxy)
 
 def get_Bending_stiffness(A,B,D):
     A_1 = np.linalg.inv(A)
@@ -154,7 +182,7 @@ def main():
 
     A,B,D,_ = get_laminate(laminato)
     #print(get_Bending_stiffness(A,B,D))
-    C = get_compliance(A,B,D)
+    C = get_stiffness(A, B, D)
     C1 = np.linalg.inv(C)
     print('- A')
     print(A)
@@ -166,6 +194,8 @@ def main():
     print(D[0,0]/(t**3/12))
     forza = np.array([100,0,0,0,0,0])
     print(np.dot(C1,forza))
+    print(get_compliance(A, B, D))
+
 
 if __name__ ==  "__main__":
     main()
