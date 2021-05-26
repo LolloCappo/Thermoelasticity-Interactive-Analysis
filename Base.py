@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import analisi_tsa # modulo
-import RoiSelect
 
 from scipy import interpolate,ndimage
 
@@ -9,7 +8,7 @@ import RoiSelect
 
 
 fa = 120 # freq ac1uisiszione
-fr = 30
+fr = 10
 label_nome = 'strato_1'
 livello_carico = 'H'
 path_base = f'C:/Users/Rodo/Dropbox/Il mio PC (LAPTOP-SA2HR7TC)/Desktop/Tesi/Dati/{label_nome}/'
@@ -25,8 +24,8 @@ else:
     Analisi = analisi_tsa.TSA(fa,path_npy)
 
 #cordinate = RoiSelect.selectROI(Analisi.finestra_video[:,:,1],titolo='Seleziona ROI')
-cordinate = (20,100,180,400)
-Analisi.set_ROI(cordinate[1],cordinate[0],cordinate[3],cordinate[2],view = False)
+#cordinate = (20,100,180,400)
+#Analisi.set_ROI(cordinate[1],cordinate[0],cordinate[3],cordinate[2],view = False)
 cordinate = RoiSelect.selectROI_ellipse(Analisi.get_roi_offset(),titolo='Seleziona ROI foro')
 print(cordinate)
 Analisi.set_hole(cordinate[1],cordinate[0],cordinate[3],cordinate[2])
@@ -42,7 +41,6 @@ print(cordinate)
 
 
 (mappa_modulo,mappa_fase)=Analisi.lockin(view = True,t_lim_inf = None, t_lim_sup = None)
-mappa_modulo=np.flip(mappa_modulo,axis = 1)
 flag_utente = 'n'
 while flag_utente == 'n':
     #mappa_view = ndimage.gaussian_filter(mappa_modulo,sigma=2)
@@ -53,18 +51,9 @@ while flag_utente == 'n':
     mappa_view = mappa_modulo
     cordinate = RoiSelect.select_line(mappa_view,titolo='Seleziona ROI')
     Analisi.result_line(cordinate[1],cordinate[0],cordinate[3],cordinate[2],view = True)
-    (x,y) = mappa_view.shape
-    print(x)
-    print(y)
-    print(len(np.arange(x)))
-    fig = plt.figure()
-    #ax = plt.axes(projection='3d')
-    #ax.plot_surface(np.arange(x),np.arange(y),mappa_view,cmap='inferno')
-    #plt.show()
     while (flag_utente:= input(f"Va bene la zona compensazione? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
+Analisi.set_phase_offset()
 Analisi.save()
-analisi_tsa.intercative_phase(mappa_fase)
-
 
 Analisi.view_result_coutour_plot()
 

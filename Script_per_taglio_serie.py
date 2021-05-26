@@ -41,7 +41,7 @@ if flag == 'y':
             while (flag_utente:= input(f"Va bene il taglio f = {name['fr']} e L = {name['force']}? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
             if flag_utente == 'n':
                 cordinate_finestra = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo='Seleziona finestra')
-        analisi_tsa.taglio_video(Analisi,cordinate_finestra[1],cordinate_finestra[0],cordinate_finestra[3],cordinate_finestra[2],save_path=path_save+name['name']+'.npy')
+        analisi_tsa.split_video(Analisi,cordinate_finestra[1],cordinate_finestra[0],cordinate_finestra[3],cordinate_finestra[2],save_path=path_save+name['name']+'.npy')
 
 
 

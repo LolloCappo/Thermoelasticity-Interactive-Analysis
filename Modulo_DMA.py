@@ -24,15 +24,18 @@ def estrai(path_base,N,name = None,nrows = 20,normalizza=False,s=1):
     data = data.set_index(['test'])
     data['tan_delta'] = data['tan_delta'].abs()
     data['csi'] = ottieni_smorazamento(data['tan_delta'])
-    data['Stifness'] = data['F']/(data['x']*1000)
+    data['Stifness'] = data['F']/(data['x'])
     print(f"spostamento di {path_base} massimo {data['x'].max()/1000 } [mm]")
+    data['M*'] =  data['M*']/1000
+    data['M'] =  data['M']/1000
+    data['M\''] =  data['M\'']/1000
     if normalizza:
         data['M*'] =  data['M*']/s#*(s**3/12)
         data['M'] =  data['M']/s#*(s**3/12)
         data['M\''] =  data['M\'']/s#*(s**3/12)
     return data
 
-def plottaggio(data,ax1,ax2,label='test',f_min=0,f_max=None,name = None,flag_colore = 0,label_colore = 'dietro',flag_title:bool = False,loss_factor:bool = False):
+def plottaggio(data,ax1,ax2,label='test',x='f',y='M*',f_min=0,f_max=None,name = None,flag_colore = 0,label_colore = 'dietro',flag_title:bool = False,loss_factor:bool = False):
     if loss_factor:
         name_fact = 'tan_delta'
     else:
@@ -43,12 +46,10 @@ def plottaggio(data,ax1,ax2,label='test',f_min=0,f_max=None,name = None,flag_col
         f_max = data.loc[name[0]]['f'][-1]
     data = data[(data['f'] >= f_min) & (data['f'] <= f_max)]
     N = len(name)
-    f = data.loc[name[0]]['f'].to_numpy()
+    f = data.loc[name[0]][x].to_numpy()
 
-    M_media = np.zeros(data.loc[name[0]]['M*'].size)
-    M_media_el = np.zeros(f.size)
-    M_media_los = np.zeros(f.size)
-    tan_media = np.zeros(data.loc[name[0]]['M*'].size)
+    M_media = np.zeros(data.loc[name[0]][y].size)
+    tan_media = np.zeros(data.loc[name[0]][y].size)
     colore_media = '#%02x%02x%02x' % (np.random.randint(256),np.random.randint(256),np.random.randint(256))
     for i in range(N):
         if flag_colore == 0:
@@ -64,12 +65,11 @@ def plottaggio(data,ax1,ax2,label='test',f_min=0,f_max=None,name = None,flag_col
             else:
                 label_temp = f'test {label}'
                 colore = 'darkred'
-        data.loc[name[i]].plot.scatter(x='f',y='M*',ax = ax1,label=label_temp,color='none',edgecolors = colore)
-        data.loc[name[i]].plot.scatter(x='f',y=name_fact,ax = ax2,label=label_temp,color='none',edgecolors = colore)
-        M_media += data.loc[name[i]]['M*'].to_numpy()/(N)
-        #M_media_el += data.loc[name[i]]['M'].to_numpy()/(N)
-        #M_media_los += data.loc[name[i]]['M\''].to_numpy()/(N)
+        data.loc[name[i]].plot.scatter(x=x,y=y,ax = ax1,label=label_temp,color='none',edgecolors = colore)
+        data.loc[name[i]].plot.scatter(x=x,y=name_fact,ax = ax2,label=label_temp,color='none',edgecolors = colore)
 
+
+        M_media += data.loc[name[i]][y].to_numpy()/(N)
         tan_media += data.loc[name[i]][name_fact].to_numpy()/(N)
     if flag_colore == 1:
         ax1.legend([label])
@@ -77,14 +77,17 @@ def plottaggio(data,ax1,ax2,label='test',f_min=0,f_max=None,name = None,flag_col
     elif flag_colore == 2:
         ax1.legend([f'test {label}',f'test {label_colore} {label}'])
         ax2.legend([f'test {label}',f'test {label_colore} {label}'])
-    ax1.plot(f,M_media,label='media',color = colore_media)
-    #ax1.plot(f,M_media_el,label='modulo in fase',color = 'r')   
-    #ax1.plot(f,M_media_los,label='modulo viscoso',color = 'b')   
-    ax1.grid()
-    ax2.grid()
+    ax1.plot(f,M_media,label='media',color = colore_media)  
     ax2.plot(f,tan_media,label='media',color = colore_media)
+    ax2.yaxis.tick_right()
+    ax1.set_xlabel('')
+    ax2.set_xlabel('')
+    ax1.set_ylabel('')
+    ax2.set_ylabel('')
+    ax1.grid(alpha=0.3)
+    ax2.grid(alpha=0.3)
     if flag_title:
-        ax1.set(title='M*')
+        ax1.set(title=y)
         ax2.set(title=name_fact)
     return (M_media,tan_media)
 
