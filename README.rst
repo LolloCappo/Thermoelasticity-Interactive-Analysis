@@ -10,7 +10,7 @@ Perform interactive frequency-based analysis for thermal acquisition and data vi
 Installing this package
 -----------------------
 
-Use 'import' to use it by:
+Use `import` to use it by:
 
 .. code-block:: console
 
