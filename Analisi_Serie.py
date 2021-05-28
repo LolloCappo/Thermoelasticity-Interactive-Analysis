@@ -1,7 +1,7 @@
 import pysfmov
 import matplotlib.pyplot as plt
 import numpy as np
-import analisi_tsa # modulo
+import pytsa # modulo
 import json
 import time
 
@@ -31,7 +31,7 @@ for name in names:
     print(name['name'])
 print(len(names))#
 path_res = f"{path}/res/"
-Analisi = analisi_tsa.TSA(fa,names[0]['path'])
+Analisi = pytsa.TSA(fa,names[0]['path'])
 
 cordinate_roi = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo ='Seleziona ROI')
 Analisi.set_ROI(cordinate_roi[1],cordinate_roi[0],cordinate_roi[3],cordinate_roi[2],view = False)
@@ -42,7 +42,7 @@ for name in names:
     theta_offset = 0
     flag_analisi = 'y'
     if name != names[0]:
-        Analisi = analisi_tsa.TSA(name['fa'],name['path'])
+        Analisi = pytsa.TSA(name['fa'],name['path'])
         Analisi.set_ROI(cordinate_roi[1],cordinate_roi[0],cordinate_roi[3],cordinate_roi[2],view = False)
     while flag_analisi == 'y':
         (fr_real,_,_) = Analisi.freq_detection(name['fr'],cordinate_crop[1],cordinate_crop[0],cordinate_crop[3],cordinate_crop[2],df = 5,view = True)

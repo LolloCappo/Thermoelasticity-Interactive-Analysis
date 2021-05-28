@@ -1,18 +1,19 @@
+import pysfmov
 import numpy as np
-
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.animation as animation 
-from matplotlib.widgets import Slider
 import matplotlib.patches as mpatches
-from scipy import ndimage
 
-import pysfmov
+from scipy import ndimage
 from scipy.io import loadmat
 from numba import jit
+from matplotlib.widgets import Slider
 
 class TSA:
-    def __init__(self,fa:float,file_path='data.mat',video_npy = False,flag_npy = False):
+    ''' Thermelastic signal 
+    '''
+    def __init__(self,fs:float,file_path='data.mat',video_npy = False,flag_npy = False):
         ''' Nota. il video utilizzato nella classe è memerizzato come un oggetto numpy
          in formato (x,y,t)
         '''
@@ -20,7 +21,7 @@ class TSA:
         if flag_npy:
             self.video = video_npy
         else:
-            if file_path[-3:] == 'mat': # rivedi fai con funzione di Os!
+            if file_path[-3:] == 'mat':
                 self.video = loadmat(file_path,squeeze_me = True)['video']
             elif file_path[-5:] == 'sfmov':
                 self.video = np.moveaxis(pysfmov.get_data(self.__file_path),0,-1) # (t,x,y) => (x,y,t)
@@ -30,8 +31,8 @@ class TSA:
             else:
                 print('** Path non valido') # devi da errore
         # Dati
-        self.__fa = fa # f acquiszione Hz
-        self.__fr = 0 # f riferimento corretta Hz
+        self.__fs = fs # Sampling rate [Hz]
+        self.__fr = 0 # reference frequency [Hz]
         (self.__dx,self.__dy,self.__N) = self.video.shape
         self.__video_roi_offset = self.video[:,:,0].copy()
         self.__video_roi = np.zeros([self.__dx,self.__dy,self.__N])
@@ -42,15 +43,13 @@ class TSA:
         # utilità
         self.__cordinate_roi = (0,0,self.__dx,self.__dy)
         (self.__dx_roi,self.__dy_roi,self.__N_roi) = (self.__dx,self.__dy,self.__N)
-        self.__fa = fa # f acquiszione Hz
-        self.__fr = 0 # f riferimento corretta Hz
-        self.__fr_original = 0 # # f riferimento Hz
-        self.__df = 0 # banda filtro Hz
+        self.__fr_original = 0 # # set reference frequency  [Hz]
+        self.__df = 0 # bandwidth frequency [Hz]
         self.__tag_analysis = False # analisi svolta? [true/false]
         self.__tag_roi = False # roi selezionata? [true/false] 
     
     def __repr__(self):
-        return f"Video per TSA:'{self.__file_path}'\nfa [Hz] = {self.__fa} , fr [Hz] = {str(self.__fr)}, df [Hz] = {str(self.__df)}"
+        return f"Video per TSA:'{self.__file_path}'\nfa [Hz] = {self.__fs} , fr [Hz] = {str(self.__fr)}, df [Hz] = {str(self.__df)}"
 
     def freq_detection(self,fr:float(),xi:int=0,yi:int=0,xf:int=0,yf:int=0,df:float = 4,k_scale:float() = 0.3,view:bool = False):
         '''
@@ -82,13 +81,13 @@ class TSA:
         if xi+dx < self.__dx_roi and yi+dy < self.__dy_roi:
             if df:
                 self.__fr_original = fr
-                ni = int(self.__N_roi%(self.__fa/self.__fr)) # riduco leakage
+                ni = int(self.__N_roi%(self.__fs/self.__fr)) # riduco leakage
                 N = self.__N_roi-ni
                 roi_detection = self.__video_roi[xi:xi+dx,yi:yi+dy,ni:].copy()
-                n_lim = (np.array([fr-df/2,fr+df/2])*(N/self.__fa)).astype(int)
+                n_lim = (np.array([fr-df/2,fr+df/2])*(N/self.__fs)).astype(int)
                 signal = np.zeros(N)
-                f = (self.__fa/N)*np.arange((N)//2+1)
-                time = (1/self.__fa)*np.arange(N)
+                f = (self.__fs/N)*np.arange((N)//2+1)
+                time = (1/self.__fs)*np.arange(N)
                 N_media = np.count_nonzero(self.__video_roi_mask[xi+dx,yi+dy])
                 for x in range(dx): # mean
                     for y in range(dy):
@@ -111,8 +110,8 @@ class TSA:
                     ax[0].grid(True)
                     ax[0].set(title=r'$FFT[ T( x_0 , y_0 , t)]$',xlabel='Frequency [Hz]')
                     ax[0].vlines(self.__fr_original,*[0,s_fft_max],color = 'r')
-                    ax[0].vlines(n_lim[0]*self.__fa/N,*[0,s_fft_max],color = 'black',linestyle='--')
-                    ax[0].vlines(n_lim[1]*self.__fa/N,*[0,s_fft_max],color = 'black',linestyle='--')
+                    ax[0].vlines(n_lim[0]*self.__fs/N,*[0,s_fft_max],color = 'black',linestyle='--')
+                    ax[0].vlines(n_lim[1]*self.__fs/N,*[0,s_fft_max],color = 'black',linestyle='--')
                     for n in n_list:
                         ax[0].plot(f[n],np.abs(2*S_fft[n]),'r*')
                     ax[1].plot(time,signal)
@@ -121,13 +120,13 @@ class TSA:
                     plt.show()
                 if flag_max:
                     flag_utente = 0
-                    while (flag_utente:= input(f"Scegli la frequenza: (Enter numero {np.arange(n_list_size)} per f = {n_list*(self.__fa/N)}) : ... ").lower()) not in [str(i) for i in range(n_list_size)]: pass
+                    while (flag_utente:= input(f"Scegli la frequenza: (Enter numero {np.arange(n_list_size)} per f = {n_list*(self.__fs/N)}) : ... ").lower()) not in [str(i) for i in range(n_list_size)]: pass
                     n = n_list[int(flag_utente)]
-                self.__fr = (self.__fa/N)*(2*S_fft[n]*n+S_fft[n-1]*(n-1)+S_fft[n+1]*(n+1))/(2*S_fft[n]+S_fft[n-1]+S_fft[n+1])
+                self.__fr = (self.__fs/N)*(2*S_fft[n]*n+S_fft[n-1]*(n-1)+S_fft[n+1]*(n+1))/(2*S_fft[n]+S_fft[n-1]+S_fft[n+1])
                 phase_map = np.empty((dx,dy))
-                _,phase_map = lockin_2D(roi_detection,np.ones([dx,dy]),self.__fa,self.__fr)
+                _,phase_map = lockin_2D(roi_detection,np.ones([dx,dy]),self.__fs,self.__fr)
                 self.__phase_offset = np.percentile(phase_map,50)
-                print(f"frequenza di carico compensata : {self.__fr} [Hz] con df = 1/T = {self.__fa/self.__N_roi} e angolo di fase th = {self.__phase_offset*(180/np.pi)}")
+                print(f"frequenza di carico compensata : {self.__fr} [Hz] con df = 1/T = {self.__fs/self.__N_roi} e angolo di fase th = {self.__phase_offset*(180/np.pi)}")
                 return self.__fr,_,self.__phase_offset
 
             else: 
@@ -136,11 +135,13 @@ class TSA:
                 self.__fr = fr
 
     def set_ROI(self,xi,yi,xf,yf,ni = 0,view = False):
-        ''' this method sets the regions of interest (ROIs) in which to perform the analysis
-            (xi,yi) --> coordinate del vertice rettangolo [pixel]
-            (xf,yf) --> coordinate del vertice opposto rettangolo [pixel]
-            ni --> save from the ni-th frame
-            view --> attiva o meno la visualizzazione
+        ''' 
+        Function to sets the regions of interest (ROIs) in which to perform the analysis
+        Arguments:
+            - (xi,yi) --> coordinate [pixel]
+            - (xf,yf) --> coordinate [pixel]
+            - ni --> save from the ni-th frame
+            - view --> attiva o meno la visualizzazione            
         '''
         dx = xf-xi
         dy = yf-yi
@@ -193,11 +194,14 @@ class TSA:
 
     def lockin(self,fr=None,phase_offset=None,view = False,t_lim_inf = None,t_lim_sup = None):
         ''' Ottengo la mappa di modulo e fase, tramite lock-in.
-        fr --> frequenza di carico [Hz]
-        view --> attiva o meno la visualizzazione delle mappe
+        used to measure phase shift, even when the signals are large, have a high signal-to-noise ratio and do not need further improvement. 
+        returns the thermelastic signal 
+        - fr   --> reference frequency [Hz]
+        - view --> attiva o meno la visualizzazione delle mappe
+        - phase_offset --> phase of the reference signal [rad]
         Output:
-        mappa modulo T [K]
-        mappa fase [deg]
+        - ampitude map [K]
+        - phase map [deg]
         '''
         # contollo e utility
         if fr:
@@ -210,7 +214,7 @@ class TSA:
             self.set_ROI(0,0,self.__dx,self.__dy)
         self.__tag_analysis = True
         # dati
-        self.__map_amplitude,self.__map_phase = lockin_2D(self.__video_roi,self.__video_roi_mask,self.__fr,self.__fa,phase_offset=self.__phase_offset)
+        self.__map_amplitude,self.__map_phase = lockin_2D(self.__video_roi,self.__video_roi_mask,self.__fr,self.__fs,phase_offset=self.__phase_offset)
         self.__map_phase *= (180/np.pi)
         if view:
             self.view_result(t_lim_inf,t_lim_sup)        
@@ -243,7 +247,7 @@ class TSA:
             ax_1.set(title=f'Phase [deg]')
             if save:
                 if name_file == '':
-                    name_file = f'fa{self.__fa}_fr{self.__fr:.{2}f}'
+                    name_file = f'fs{self.__fs}_fr{self.__fr:.{2}f}'
                 plt.savefig(path+name_file+'.png')
             else:
                 plt.show()
@@ -260,7 +264,7 @@ class TSA:
         ''' save
         '''
         if name_file == '':
-            name_file = f'fa{self.__fa}_fr{self.__fr:.{2}f}'
+            name_file = f'fs{self.__fs}_fr{self.__fr:.{2}f}'
         self.view_result(save=True,path=path,name_file=name_file)
         np.save(path + name_file +'.npy',np.array([self.__map_amplitude,self.__map_phase]))
     
@@ -376,7 +380,7 @@ class TSA:
     def get_roi_offset(self):
         return self.__video_roi_offset
         
-# funzioni per l'utilità
+# funzioni classe
 
 def __update(cmap_lim_inf,cmap_lim_sup,AxesImage,fig):
     lim_inf = cmap_lim_inf.val
@@ -399,10 +403,10 @@ def __update_phase(slider_lim,AxesImage,fig,map_phase,mask):
 def interactive_phase(matrice_immagine,mask=None,titolo='Immagine'):
     '''
     input:
-
-            image matrix
+        - image --> npy matrix
+        - mask  --> zeros and ones matrix, if 1 change the phase if 0 change the 
     output:
-        (x1,y1,x2,y2)
+        - (x1,y1,x2,y2) cordinate
     '''
     if mask is None:
         mask = np.ones(matrice_immagine.shape)
@@ -434,7 +438,6 @@ def interactive_cmap(matrice_immagine,titolo='Immagine',lim_inf=None,lim_sup=Non
     AxesImage = plt.imshow(matrice_immagine,cmap='magma')
     fig.colorbar(AxesImage,orientation = 'vertical',fraction = 0.5)
     
-
     axcolor = 'lightgoldenrodyellow'
     ax_lim_inf = plt.axes([0.1, 0.25, 0.0225, 0.63], facecolor=axcolor)
     ax_lim_sup = plt.axes([0.15, 0.25, 0.0225, 0.63], facecolor=axcolor)
@@ -482,12 +485,22 @@ def split_video(analysis_object,xi,yi,xf,yf,view=False,save_path = 'data'):
         print('Finestra non valida')
 
 @jit(nopython=True)
-def lockin_2D(video_roi,video_roi_mask,fr,fa,phase_offset=0):
+def lockin_2D(video_roi,video_roi_mask,fr,fs,phase_offset=0):
+    ''' 
+    Multiple-channel digital lock-in amplifier
+        - signal --> .npy array 1d
+        - fr     --> reference frequency [Hz]
+        - fs     --> Sampling rate [Hz]
+        - phase_offset --> phase of the reference signal [rad]
+    return;
+        - ampitude
+        - phase [deg]
+    ''' 
     (dx_roi,dy_roi,N_roi) = video_roi.shape
     wr = (2*np.pi)*fr
     Ix = np.zeros((dx_roi,dy_roi))
     Iy = np.zeros((dx_roi,dy_roi))
-    t = (1/fa)*np.arange(N_roi)
+    t = (1/fs)*np.arange(N_roi)
     SgnF = np.sin(wr*t-phase_offset)
     SgnG = np.cos(wr*t-phase_offset)
     for x in range(dx_roi):
@@ -503,8 +516,19 @@ def lockin_2D(video_roi,video_roi_mask,fr,fa,phase_offset=0):
     return map_amplitude,map_phase
 
 @jit(nopython=True)
-def lockin_1D(signal,fr,fa):
-    time = (1/fa)*np.arange(len(signal))
+def lockin_1D(signal,fr,fs,phase_offset:float=0):
+    ''' 
+    A basic single-channel digital lock-in amplifier.
+    input:
+        - signal --> .npy array 1d
+        - fr     --> reference frequency
+        - fs     --> Sampling rate
+        - phase_offset --> phase of the reference signal
+    return;
+        - ampitude
+        - phase [deg]
+    ''' 
+    time = (1/fs)*np.arange(len(signal))
     wr = fr*(2*np.pi)
     SgnSF = np.sin(wr*time)*signal
     SgnSG = np.cos(wr*time)*signal
@@ -513,7 +537,7 @@ def lockin_1D(signal,fr,fa):
     return np.sqrt(sf**2+sg**2),np.arctan2(sg,sf)
 
 def set_clim(matrix,p_sup = 0.96,p_inf = 0.1):
-    ''' set the cmap limit from the percentile
+    ''' set the cmap limit for the matrix from the percentile
     Input:
 
     Output:

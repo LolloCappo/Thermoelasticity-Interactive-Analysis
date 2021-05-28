@@ -101,8 +101,8 @@ def coutour_plot(immagine,ax,levels = [],filter_flag=True):
     ax.clabel(CS, inline=True, fontsize=10)
     return ax
 
-path_base = f'C:/Users/Rodo/Dropbox/Il mio PC (LAPTOP-SA2HR7TC)/Desktop/Tesi/Dati/res/'
-lista_file = RoiSelect.list_all_files(path_base,ext = '.npy')
+path_base = f'C:/Users/Rodo/Dropbox/Il mio PC (LAPTOP-SA2HR7TC)/Desktop/Tesi/Dati/res/' # path in cui sono presenti le mappe da considerare
+lista_file = RoiSelect.list_all_files(path_base,ext = '.npy') # riconoscoìe in automatico quali video sono presenti
 lista_file.reverse()
 N_prove = ['dx','dy']
 flag_visualizzazione = False
@@ -117,14 +117,11 @@ limiti_picco = np.empty(4)
 #
 for prova in N_prove:
     flag_selezione_roi = True
-    #limiti_base = np.array([317,474,16,172])
-    #limiti_picco = np.array([262,280,126,141])
     for file_corrente in lista_file:
         print(file_corrente[-21:-4])
         mappa = np.load(file_corrente)[0,:,:]
         if flag_selezione_roi:
             (limiti_base,limiti_picco) = seleziona_cordinate_mista(mappa)
-             #(limiti_base,limiti_picco) = seleziona_cordinate_rettangolo(mappa)
         flag_selezione_roi = False # prendo solo la prima
         if True:
             mappa = ndimage.gaussian_filter(mappa,sigma=10)
@@ -148,8 +145,7 @@ for prova in N_prove:
         #cv_picco = 0
         data_cv.append({'strato':file_corrente[-10],'force':file_corrente[-5],'fr':int(file_corrente[-8:-6]),'rapporto':cv_picco/media_base,'std_base':std_base,'media_base':media_base,'cv_picco':cv_picco,'lato':prova})
     print('cambio lato')
-    #limiti_base = np.array([303,475,24,169])
-    #limiti_picco = [260,276,61,74]
+
 # esporto i dati
 data_mean = pd.DataFrame(data_mean)
 data_max = pd.DataFrame(data_max)
