@@ -14,7 +14,7 @@ Use `pip` to install it by:
 
 .. code-block:: console
 
-    $ pip install pyLIA
+    $ import pyTSA
 
 
 Simple examples
