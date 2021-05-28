@@ -4,13 +4,13 @@ Thermoelastic Stress Analysis (TSA)
 .. image:: 
    :target: 
 
-Perform digital lock-in analysis built for thermal analysis
+Perform interactive frequency-based analysis for thermal acquisition and data visualization: digital lock-in and real-frequency reconstruction using FFT approach 
 
 
 Installing this package
 -----------------------
 
-Use `pip` to install it by:
+Use 'import' to use it by:
 
 .. code-block:: console
 
