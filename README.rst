@@ -1,8 +1,8 @@
-Thermoelastic stress analysis (TSA)
+Thermoelastic Stress Analysis (TSA)
 ---------------------------------------------
 
-.. image:: https://zenodo.org/badge/220818285.svg
-   :target: https://zenodo.org/badge/latestdoi/220818285
+.. image:: 
+   :target: 
 
 Perform digital lock-in analysis built for thermal analysis
 
