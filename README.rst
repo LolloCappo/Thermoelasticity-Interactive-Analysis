@@ -30,9 +30,8 @@ Here is a simple example on how to use the code:
    $ analysis = pytsa.TSA(fa,path)
    $ fr = 5 # [Hz]
    $ analysis.lockin(fr)
+   $ analysis.view_result()
 
-
-    
 
 
 Reference:
