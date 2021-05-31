@@ -8,8 +8,8 @@ import RoiSelect
 
 
 fa = 120 # freq q
-fr = 20
-label_nome = 'strato_0'
+fr = 30
+label_nome = 'strato_1'
 livello_carico = 'H'
 path_base = f'C:/Users/Rodo/Dropbox/Il mio PC (LAPTOP-SA2HR7TC)/Desktop/Tesi/Dati/{label_nome}/'
 
@@ -22,10 +22,14 @@ if flag:
     Analisi = pytsa.TSA(fa,path)
 else:
     Analisi = pytsa.TSA(fa,path_npy)
-cordinate = RoiSelect.selectROI(Analisi.get_roi_offset(),titolo='Seleziona finestra di compensazione')
-Analisi.freq_detection(fr,cordinate[1],cordinate[0],cordinate[3],cordinate[2],df = 5,view=True)
+cordinate = RoiSelect.selectROI(Analisi.get_roi_offset(),titolo='split video?')
+pytsa.split_video(Analisi,cordinate[1],cordinate[0],cordinate[3],cordinate[2],50,250,save_path='video')
+path_npy = f'video.npy'
+Analisi = pytsa.TSA(fa,path_npy)
+Analisi.view()
+Analisi.view_animate()
+
 cordinate = RoiSelect.selectROI(Analisi.get_roi_offset(),titolo='Seleziona ROI')
-cordinate = (10, 112, 190, 401)
 Analisi.set_ROI(cordinate[1],cordinate[0],cordinate[3],cordinate[2],view = False)
 
 cordinate = RoiSelect.selectROI_ellipse(Analisi.get_roi_offset(),titolo='Seleziona ROI foro')
@@ -33,8 +37,8 @@ Analisi.set_hole(cordinate[1],cordinate[0],cordinate[3],cordinate[2])
 
 flag_utente = 'n'
 while flag_utente == 'n':
-    #cordinate = RoiSelect.selectROI(Analisi.get_roi_offset(),titolo='Seleziona finestra di compensazione')
-    #Analisi.freq_detection(fr,cordinate[1],cordinate[0],cordinate[3],cordinate[2],df = 5,view=True)
+    cordinate = RoiSelect.selectROI(Analisi.get_roi_offset(),titolo='Seleziona finestra di compensazione')
+    Analisi.freq_detection(fr,cordinate[1],cordinate[0],cordinate[3],cordinate[2],df = 5,view=True)
     while (flag_utente:= input(f"Va bene la zona compensazione? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
 fr = Analisi.get_freq()
 print(cordinate)
@@ -51,14 +55,15 @@ while flag_utente == 'n':
     while (flag_utente:= input(f"Va bene la zona compensazione? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
 Analisi.set_phase_offset()
 Analisi.view_result(phase_reverse=True)
-
 Analisi.set_cmap_lim(interactive=True)
 Analisi.view_result()
-Analisi.save()
+#Analisi.save()
 
 Analisi.view_result_coutour_plot()
 
-plt.show()
+
+
+
 
 
 

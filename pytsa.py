@@ -22,22 +22,22 @@ class TSA:
         '''
         self.__file_path = file_path
         if not(video_npy is None):
-            self.video = video_npy
+            self.__video = video_npy
         else:
             if file_path[-3:] == 'mat':
-                self.video = loadmat(file_path,squeeze_me = True)['video']
+                self.__video = loadmat(file_path,squeeze_me = True)['video']
             elif file_path[-5:] == 'sfmov':
-                self.video = np.moveaxis(pysfmov.get_data(self.__file_path),0,-1) # (t,x,y) => (x,y,t)
+                self.__video = np.moveaxis(pysfmov.get_data(self.__file_path),0,-1) # (t,x,y) => (x,y,t)
                 print(pysfmov.get_meta_data(self.__file_path))
             elif file_path[-3:] == 'npy':
-                self.video = np.load(file_path)
+                self.__video = np.load(file_path)
             else:
                 print('** Path non valido') # devi da errore
         # Dati
         self.__fs = fs # Sampling rate [Hz]
         self.__fr = 0 # reference frequency [Hz]
-        (self.__dx,self.__dy,self.__N) = self.video.shape
-        self.__video_roi_offset = self.video[:,:,0].copy()
+        (self.__dx,self.__dy,self.__N) = self.__video.shape
+        self.__video_roi_offset = self.__video[:,:,0].copy()
         self.__video_roi = np.zeros([self.__dx,self.__dy,self.__N])
         self.__mask = np.ones([self.__dx,self.__dy]) # 1 on, 0 off
         self.__map_amplitude = np.empty([self.__dx,self.__dy])
@@ -70,7 +70,7 @@ class TSA:
         Output:
             fr           --> the real frequency, compensated
             phase_offset --> phase between the median value of the 
-                             area and the temporal origin of the video
+                             area and the temporal origin of the __video
         '''
         if xf == 0 or xf == None:
             xf = self.__dx_roi
@@ -159,13 +159,13 @@ class TSA:
         if xi+dx <= self.__dx and yi+dy <= self.__dy and xi >= 0 and yi >= 0 and dx>0 and dy>0:
             self.__cordinate_roi = (xi,yi,xf,yf)
             (self.__dx_roi,self.__dy_roi) = (dx,dy)
-            self.__video_roi = self.video[xi:xi+dx,yi:yi+dy,:].copy()
-            self.__video_roi_offset = self.video[xi:xi+dx,yi:yi+dy,0].copy()
+            self.__video_roi = self.__video[xi:xi+dx,yi:yi+dy,:].copy()
+            self.__video_roi_offset = self.__video[xi:xi+dx,yi:yi+dy,0].copy()
             self.__mask = self.__mask[xi:xi+dx,yi:yi+dy].copy()
         else:
             print('invalid')
             (dx,dy) = (self.__dx,self.__dy)
-            self.__video_roi = self.video.copy()
+            self.__video_roi = self.__video.copy()
             self.__video_roi_offset = np.zeros([dx,dy])
         for x in range(dx):
             for y in range(dy):
@@ -176,7 +176,7 @@ class TSA:
             spec_1 = fig_1.add_gridspec(1,2)
             ax_0 = fig_1.add_subplot(spec_1[0,0])
             ax_0.set(title='Original frame')
-            ax_0.imshow(self.video[:,:,1])
+            ax_0.imshow(self.__video[:,:,1])
             rect = patches.Rectangle((yi,xi),dy,dx,linewidth=1,edgecolor='r',facecolor='none') # ricorda verso immagine e verso matrice
             ax_0.add_patch(rect)
             ax_1 = fig_1.add_subplot(spec_1[0,1])
@@ -244,7 +244,7 @@ class TSA:
         ax_0 = fig.add_subplot(spec[0,0])
         temp = ax_0.imshow(self.__map_amplitude,cmap = 'inferno',clim = [self.__t_lim_inf,self.__t_lim_sup])  # magma o inferno
         fig.colorbar(temp,orientation = 'vertical',fraction = 0.10) 
-        ax_0.set(title=f'Magnitude \n [units of thermal video]')
+        ax_0.set(title=f'Magnitude \n [units of thermal __video]')
     
         ax_1 = fig.add_subplot(spec[0,1])
         if phase_reverse:
@@ -305,18 +305,13 @@ class TSA:
         ax.clabel(CS, inline=True, fontsize=10)
         plt.show()
    
-    def view(self,t_lim_inf = None,t_lim_sup = None): 
+    def view(self): 
         ''' Visualizza finestra corrente
             t_lim_inf --> limite inf color bar
             t_lim_sup --> limite sup color bar
         '''
-        t_lim_inf_temp,t_lim_sup_temp = set_clim(self.__video_roi_offset)
-        if t_lim_sup is None:
-            t_lim_sup = t_lim_sup_temp
-        if t_lim_inf is None:
-            t_lim_inf = t_lim_inf_temp
         _,ax = plt.subplots()
-        temp = ax.imshow(self.video[:,:,1],cmap = 'inferno',clim = [t_lim_inf,t_lim_sup])
+        temp = ax.imshow(self.__video[:,:,1],cmap = 'inferno')
         plt.colorbar(temp,orientation = 'vertical',fraction = 0.5)
         plt.show()
 
@@ -330,7 +325,7 @@ class TSA:
                 ims.append([temp])
         else:
             for i in range(self.__N):
-                temp = plt.imshow(self.video[:,:,i],cmap = 'inferno', animated=True)
+                temp = plt.imshow(self.__video[:,:,i],cmap = 'inferno', animated=True)
                 ims.append([temp])
         animation.ArtistAnimation(fig, ims, interval=50, blit=True,repeat_delay=100)
         plt.show()
@@ -374,7 +369,7 @@ class TSA:
         return self.__map_amplitude,self.__map_phase
 
     def get_window(self):
-        return self.video
+        return self.__video
 
     def get_roi(self):
         return self.__video_roi[:,:,1]
@@ -467,23 +462,22 @@ def get_local_max(signal,k_scale = 0.5):
     else:
         return n_max[value_max>(k_scale*signal[n_max[-1]])]
 
-def split_video(analysis_object,xi,yi,xf,yf,view=False,save_path = 'data'):
+def split_video(analysis_object,xi,yi,xf,yf,ni=0,nf=None,save_path = 'data'):
     ''' Permette di selezionare una regione d'interesse rettangolare su cui svolgere l'analisi
     Input:
         (xi,yi) --> coordinate del vertice rettangolo [pixel]
         (xf,yf) --> coordinate del vertice opposto rettangolo [pixel]
         view --> attiva o meno la visualizzazione
     '''
+    video = analysis_object.get_window()
+    analysis_object.view()
+    (dx_originale,dy_originale,N) = video.shape
+    if nf is None:
+        nf = N
     dx = xf-xi
     dy = yf-yi
-    video = analysis_object.get_window()
-    (dx_originale,dy_originale,_) = video.shape
-    if xi+dx < dx_originale and yi+dy < dy_originale:
-        np.save(save_path,video[xi:xi+dx,yi:yi+dy,:])
-        if view:
-            plt.imshow(video[xi:xi+dx,yi:yi+dy,1])
-            plt.title('Finestra f(x,y,t = 0)')
-            plt.show()
+    if xi+dx < dx_originale and yi+dy < dy_originale and ni>0 and nf<N and nf>0 and dx>0 and dy>0:
+        np.save(save_path,video[xi:xi+dx,yi:yi+dy,ni:nf])
     else:
         print('invalid')
 
