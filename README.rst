@@ -15,9 +15,10 @@ Use `import` to use it by:
 
 .. code-block:: console
 
-    import pyTSA
-
-
+   import sys
+   sys.path.insert(0, '/path/to/application/app/folder')
+   import pyTSA
+    
 Simple examples
 ---------------
 
