@@ -25,12 +25,12 @@ Here is a simple example on how to use the code:
 
 .. code-block:: python
 
-   $ fs = 120 # Sampling rate [Hz]
-   $ path = 'video.npy'
-   $ analysis = pytsa.TSA(fa,path)
-   $ fr = 5 # load frequency [Hz]
-   $ analysis.lockin(fr)
-   $ analysis.view_result()
+   fs = 120 # Sampling rate [Hz]
+   path = 'video.npy'
+   analysis = pytsa.TSA(fa,path)
+   fr = 5 # load frequency [Hz]
+   analysis.lockin(fr)
+   analysis.view_result()
 
 
 
