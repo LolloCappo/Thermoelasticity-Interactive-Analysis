@@ -15,7 +15,7 @@ Use `import` to use it by:
 
 .. code-block:: console
 
-    $ import pyTSA
+    import pyTSA
 
 
 Simple examples
