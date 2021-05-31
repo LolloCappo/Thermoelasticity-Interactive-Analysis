@@ -39,7 +39,7 @@ class TSA:
         (self.__dx,self.__dy,self.__N) = self.video.shape
         self.__video_roi_offset = self.video[:,:,0].copy()
         self.__video_roi = np.zeros([self.__dx,self.__dy,self.__N])
-        self.__mask = np.ones([self.__dx,self.__dy])
+        self.__mask = np.ones([self.__dx,self.__dy]) # 1 on, 0 off
         self.__map_amplitude = np.empty([self.__dx,self.__dy])
         self.__map_phase = np.empty([self.__dx,self.__dy])
         self.__phase_offset = 0
@@ -50,6 +50,7 @@ class TSA:
         self.__df = 0 # bandwidth frequency [Hz]
         self.__tag_analysis = False # analisi svolta? [true/false]
         self.__tag_roi = False # roi selezionata? [true/false] 
+        self.__tag_cmap = False
         self.__t_lim_inf = None
         self.__t_lim_sup = None
 
@@ -86,14 +87,16 @@ class TSA:
             if df:
                 self.__fr_original = fr
                 ni = int(self.__N_roi%(self.__fs/self.__fr)) # riduco leakage
-                print(ni)
                 N = self.__N_roi-ni
-                roi_detection = self.__video_roi[xi:xi+dx,yi:yi+dy,ni:].copy()
+                if ni == 0:
+                    roi_detection = self.__video_roi[xi:xi+dx,yi:yi+dy,:].copy()
+                else:
+                    roi_detection = self.__video_roi[xi:xi+dx,yi:yi+dy,:-ni].copy()
                 n_lim = (np.array([fr-df/2,fr+df/2])*(N/self.__fs)).astype(int)
                 signal = np.zeros(N)
                 f = (self.__fs/N)*np.arange((N)//2+1)
                 time = (1/self.__fs)*np.arange(N)
-                N_media = np.count_nonzero(self.__mask[xi+dx,yi+dy])
+                N_media = np.count_nonzero(self.__mask[xi:xi+dx,yi:yi+dy])
                 for x in range(dx): # mean
                     for y in range(dy):
                         if self.__mask[xi+x,yi+y] == 1:
@@ -128,8 +131,10 @@ class TSA:
                     n = n_list[int(flag_utente)]
                 self.__fr = (self.__fs/N)*(2*S_fft[n]*n+S_fft[n-1]*(n-1)+S_fft[n+1]*(n+1))/(2*S_fft[n]+S_fft[n-1]+S_fft[n+1])
                 phase_map = np.empty((dx,dy))
-                _,phase_map = lockin_2D(roi_detection,np.ones([dx,dy]),self.__fs,self.__fr)
-                self.__phase_offset = np.mean(np.percentile(phase_map,np.arange(30,70)))
+                _,phase_map = lockin_2D(self.__video_roi[xi:xi+dx,yi:yi+dy,-ni:].copy(),np.ones([dx,dy]),self.__fr,self.__fs)
+                plt.plot(np.percentile(phase_map,np.arange(0,100))*180/np.pi)
+                plt.show()
+                self.__phase_offset = np.mean(np.percentile(np.abs(phase_map),np.arange(45,55)))
                 print(f"Frequency : {self.__fr:.{2}f} Hz df = 1/T = {self.__fs/self.__N_roi:.{2}f} s, phase = {self.__phase_offset*(180/np.pi):.{2}f} deg")
                 return self.__fr,_,self.__phase_offset
 
@@ -156,7 +161,7 @@ class TSA:
             (self.__dx_roi,self.__dy_roi) = (dx,dy)
             self.__video_roi = self.video[xi:xi+dx,yi:yi+dy,:].copy()
             self.__video_roi_offset = self.video[xi:xi+dx,yi:yi+dy,0].copy()
-            self.__mask = self.__mask[xi:xi+dx,yi:yi+dy]
+            self.__mask = self.__mask[xi:xi+dx,yi:yi+dy].copy()
         else:
             print('invalid')
             (dx,dy) = (self.__dx,self.__dy)
@@ -528,8 +533,8 @@ def lockin_1D(signal,fr,fs,phase_offset:float=0):
     ''' 
     time = (1/fs)*np.arange(len(signal))
     wr = fr*(2*np.pi)
-    SgnSF = np.sin(wr*time-phase_offset)*signal
-    SgnSG = np.cos(wr*time-phase_offset)*signal
+    SgnSF = np.sin(wr*time+phase_offset)*signal
+    SgnSG = np.cos(wr*time+phase_offset)*signal
     sf = np.abs(np.mean(SgnSF)*2)
     sg = np.abs(np.mean(SgnSG)*2)
     return np.sqrt(sf**2+sg**2),np.arctan2(sg,sf)
