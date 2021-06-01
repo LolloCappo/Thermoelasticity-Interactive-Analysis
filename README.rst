@@ -6,7 +6,7 @@ Thermoelastic Stress Analysis (TSA)
 
 Perform interactive frequency-based analysis for thermal acquisition and data visualization: digital lock-in and real-frequency reconstruction using FFT approach 
 
-The reference signal is rebuilt digitaly, so need the frequency and phase. The real frequency for the load can be different from the frequency set in the load/acquistion sistem. The reference signal is may be out of phase with the infrared response and this will produce an apparent phase shift in the recorde thermoelastic signal.The "freq_detection" method try reconstruction of the reference signal from the thermal video, without the acquisiton of the signal.
+The reference signal is reconstruct digitaly, so need the frequency and the phase. The real frequency for the load can be different from the frequency set in the load/acquistion sistem. The digital signal may be out of phase with the infrared response and this will produce an apparent phase shift in the recorde thermoelastic signal.The "freq_detection" method try to reconstruction the reference signal from the thermal video, without the need of acquisiton.
 
 Installing this package
 -----------------------
