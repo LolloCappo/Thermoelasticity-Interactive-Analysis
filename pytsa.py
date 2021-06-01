@@ -59,18 +59,19 @@ class TSA:
 
     def freq_detection(self,fr:float(),xi:int=0,yi:int=0,xf:int=0,yf:int=0,df:float = 4,k_scale:float() = 0.3,view:bool = False):
         '''
-        Fuction to selects the peak from the FFT of the thermal signal, in the sets area, close to the set frequency (fr).
+        Fuction that reconstructs the reference signal. The real frequency is selected from the peak of the FFT of the thermal video 
+        in the sets area, close to the set frequency (fr).
         Input:
-            (xi,yi,xf,yf) --> coordinates edges of rettangle [pixel]
-            fr            --> set the frequency for the reference [Hz]
-            df            --> the bandwidth [Hz]
-            k_scale       --> scale factor. All the peak between the max and 
-                              k_ scale*max are taken
-            view          --> plot
+            (xi,yi,xf,yf) --> coordinates of the edges of rettangle [pixel]
+            fr            --> the set frequency for reference signal [Hz]
+            df            --> the bandwidth of research [Hz]
+            k_scale       --> scale factor. The research of frequency compensated considers  all the peak between the maxvalue and value
+                              k_ scale*max in the bandwidth.
+            view          --> enables the plot
         Output:
-            fr           --> the real frequency, compensated
-            phase_offset --> phase between the median value of the 
-                             area and the temporal origin of the __video
+            fr           --> frequency compensated of the reference signal [Hz]
+            phase_offset --> phase between the median value of the set
+                             area and 
         '''
         if xf == 0 or xf == None:
             xf = self.__dx_roi
@@ -86,7 +87,7 @@ class TSA:
         if xi+dx < self.__dx_roi and yi+dy < self.__dy_roi:
             if df:
                 self.__fr_original = fr
-                ni = int(self.__N_roi%(self.__fs/self.__fr)) # riduco leakage
+                ni = int(self.__N_roi%(self.__fs/self.__fr)) # leakage
                 N = self.__N_roi-ni
                 if ni == 0:
                     roi_detection = self.__video_roi[xi:xi+dx,yi:yi+dy,:].copy()
@@ -108,7 +109,7 @@ class TSA:
                     n = np.float(n_list)
                 else:
                     n_list_size = n_list.size
-                    print(f'* sono presenti {n_list_size} alternative! soglia al {k_scale*100} [%]')
+                    print(f'* There are  {n_list_size} alternatives with threshold at {k_scale*100} [%]')
                     flag_max = True
                 if view:
                     s_fft_max = np.max(2*S_fft)
@@ -127,7 +128,7 @@ class TSA:
                     plt.show()
                 if flag_max:
                     flag_utente = 0
-                    while (flag_utente:= input(f"Select the frequency: (Enter {np.arange(n_list_size)} for f = {n_list*(self.__fs/N)}) : ... ").lower()) not in [str(i) for i in range(n_list_size)]: pass
+                    while (flag_utente:= input(f"Selects the frequency: (Enter {np.arange(n_list_size)} for f = {n_list*(self.__fs/N)}) : ... ").lower()) not in [str(i) for i in range(n_list_size)]: pass
                     n = n_list[int(flag_utente)]
                 self.__fr = (self.__fs/N)*(2*S_fft[n]*n+S_fft[n-1]*(n-1)+S_fft[n+1]*(n+1))/(2*S_fft[n]+S_fft[n-1]+S_fft[n+1])
                 phase_map = np.empty((dx,dy))
@@ -145,11 +146,11 @@ class TSA:
 
     def set_ROI(self,xi,yi,xf,yf,ni = 0,view = False):
         ''' 
-        Function to sets the regions of interest (ROIs) in which to perform the analysis.
+        Function that sets the Region Of Interest (ROI) in which to perform the analysis.
         Arguments:
             - (xi,yi) --> coordinate [pixel]
             - (xf,yf) --> coordinate [pixel]
-            - ni --> save from the ni-th frame
+            - ni --> save from the ni frame to the end of the video
             - view --> attiva o meno la visualizzazione            
         '''
         dx = xf-xi
@@ -203,10 +204,8 @@ class TSA:
 
     def lockin(self,fr=None,phase_offset=None,view = False,t_lim_inf = None,t_lim_sup = None):
         ''' 
-        Function to obtain magnitude and phase of a thermal acquisition usign a lock-in analyzer
+        Function to obtain the magnitude and the phase of a thermal acquisition usign a lock-in analyzer.
 
-        used to measure phase shift, even when the signals are large, have a high signal-to-noise ratio and do not need further improvement. 
-        returns the thermelastic signal 
         - fr   --> reference frequency [Hz]
         - view --> attiva o meno la visualizzazione delle mappe
         - phase_offset --> phase of the reference signal [rad]
@@ -232,9 +231,10 @@ class TSA:
         return self.__map_amplitude,self.__map_phase
 
     def view_result(self,t_lim_inf = None,t_lim_sup = None,phase_reverse = False,save=False,path='',name_file=''):
-        ''' Visualizza area selezionata o la mappa del modulo e fase
+        ''' 
+        Function that shows the thermoelastic signal (magintude and phase)
         -
-        - phase_reverse --> if is True, the phase is between [0,180] deg (abs of the phase map). Else, it is between [-180,180] 
+        - phase_reverse --> if is True, the phase is incluted between [0,180] deg (absolute of the phase map). Else, it is incluted between [-180,180] 
         '''
         self.set_cmap_lim(t_lim_inf,t_lim_sup)
   
@@ -244,7 +244,7 @@ class TSA:
         ax_0 = fig.add_subplot(spec[0,0])
         temp = ax_0.imshow(self.__map_amplitude,cmap = 'inferno',clim = [self.__t_lim_inf,self.__t_lim_sup])  # magma o inferno
         fig.colorbar(temp,orientation = 'vertical',fraction = 0.10) 
-        ax_0.set(title=f'Magnitude \n [units of thermal __video]')
+        ax_0.set(title=f'Magnitude \n [units of thermal video]')
     
         ax_1 = fig.add_subplot(spec[0,1])
         if phase_reverse:
@@ -463,7 +463,8 @@ def get_local_max(signal,k_scale = 0.5):
         return n_max[value_max>(k_scale*signal[n_max[-1]])]
 
 def split_video(analysis_object,xi,yi,xf,yf,ni=0,nf=None,save_path = 'data'):
-    ''' Permette di selezionare una regione d'interesse rettangolare su cui svolgere l'analisi
+    ''' 
+    Fuction that crops the video and saves in save_path, as .npy
     Input:
         (xi,yi) --> coordinate del vertice rettangolo [pixel]
         (xf,yf) --> coordinate del vertice opposto rettangolo [pixel]
