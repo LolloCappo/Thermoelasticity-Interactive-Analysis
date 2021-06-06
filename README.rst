@@ -1,8 +1,6 @@
 Thermoelastic Stress Analysis (TSA)
 ---------------------------------------------
 
-.. image:: 
-   :target: 
 
 Perform interactive frequency-based analysis for thermal acquisition and data visualization: digital lock-in and real-frequency reconstruction using FFT approach 
 
@@ -11,13 +9,21 @@ The reference signal is reconstruct digitaly, so need the frequency and the phas
 Installing this package
 -----------------------
 
-Use `import` to use it by:
+If you have the script and pytsa module in the same folder, use `import` to use it by:
+
+.. code-block:: console
+
+   import sys 
+
+
+If the module is in another folder, you can use :
 
 .. code-block:: console
 
    import sys
    sys.path.insert(0, '/path/to/application/app/folder')
    import pyTSA
+
     
 Simple examples
 ---------------
@@ -29,11 +35,20 @@ Here is a simple example on how to use the code:
    fs = 120 # Sampling rate [Hz]
    path = 'video.npy'
    analysis = pytsa.TSA(fa,path)
-   fr = 5 # load frequency [Hz]
-   analysis.lockin(fr)
+   fr = 40 # load frequency [Hz]
+   analysis.freq_detection(fr,cordinate[0],cordinate[1],cordinate[2],cordinate[3],view=True)
+   analysis.lockin()
    analysis.view_result()
 
+.. image:: image/set_freq.png
+   :width: 400
 
+.. image:: image/cfrp_force_H_fa120_fr40.png
+  :width: 400
+
+
+
+Other examples are included (`base.py <https://github.com/LolloCappo/Thermoelasticity-Interactive-Analysis/tree/main/Esempi>`_) 
 
 Reference:
 
