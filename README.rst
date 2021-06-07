@@ -11,14 +11,14 @@ Installing this package
 
 If you have the script and pytsa module in the same folder, use `import` to use it by:
 
-.. code-block:: console
+.. code-block:: python
 
    import sys 
 
 
 If the module is in another folder, you can use :
 
-.. code-block:: console
+.. code-block:: python
 
    import sys
    sys.path.insert(0, '/path/to/application/app/folder')
