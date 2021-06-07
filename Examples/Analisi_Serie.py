@@ -1,11 +1,11 @@
-import pysfmov
 import matplotlib.pyplot as plt
 import numpy as np
-import pytsa # modulo
 import json
 import time
-
+import sys
+sys.path.insert(0,'..')
 import RoiSelect
+import pytsa # modulo
 
 # dati
 fa = 120 # freq ac1uisiszione
@@ -33,9 +33,9 @@ print(len(names))#
 path_res = f"{path}/res/"
 Analisi = pytsa.TSA(fa,names[0]['path'])
 
-cordinate_roi = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo ='Seleziona ROI')
+cordinate_roi = RoiSelect.selectROI(Analisi.get_roi_offset(),titolo ='Seleziona ROI')
 Analisi.set_ROI(cordinate_roi[1],cordinate_roi[0],cordinate_roi[3],cordinate_roi[2],view = False)
-cordinate_crop = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo = 'Seleziona finestra di compensazione')
+cordinate_crop = RoiSelect.selectROI(Analisi.get_roi_offset(),titolo = 'Seleziona finestra di compensazione')
 dict_res = []
 for name in names:
     print(name)
@@ -48,7 +48,7 @@ for name in names:
         (fr_real,_,_) = Analisi.freq_detection(name['fr'],cordinate_crop[1],cordinate_crop[0],cordinate_crop[3],cordinate_crop[2],df = 5,view = True)
         while (flag_utente:= input(f"Va bene la zona compensazione? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
         while flag_utente == 'n':
-            cordinate = RoiSelect.selectROI(Analisi.finestra_video_roi_offset,titolo='Seleziona finestra di compensazione')
+            cordinate = RoiSelect.selectROI(Analisi.get_roi_offset(),titolo='Seleziona finestra di compensazione')
             (fr_real,_,_) = Analisi.freq_detection(name['fr'],cordinate_crop[1],cordinate_crop[0],cordinate_crop[3],cordinate_crop[2],df = 4,view = True)
             while (flag_utente:= input(f"Va bene la zona compensazione? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
 
@@ -57,7 +57,7 @@ for name in names:
         t_lim_sup = None
         while (flag_utente:= input(f"Va bene la zona cmap? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
         while flag_utente == 'n':
-            (t_lim_inf,t_lim_sup,theta_offset) = Analisi.view_result(interactive=True)
+            (t_lim_inf,t_lim_sup) = Analisi.set_cmap_lim(interactive=True)
             while (flag_utente:= input(f"Va bene la zona cmap? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass
         Analisi.view_result(t_lim_inf=t_lim_inf,t_lim_sup = t_lim_sup, save = True,path=path_res+'cfrp_force_'+name['force']+'_')
         while (flag_analisi:= input(f"Ripetere l'analisi? (Enter y/n) : ... ").lower()) not in {"y", "n"}: pass

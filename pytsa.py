@@ -260,7 +260,7 @@ class TSA:
             ax_1.set(title=f'Phase \n [deg]')
             if save:
                 if name_file == '':
-                    name_file = f'fs{self.__fs}_fr{self.__fr_original_:.{2}f}'
+                    name_file = f'fs{self.__fs}_fr{self.__fr_original:.{2}f}'
                 plt.savefig(path+name_file+'.png')
             else:
                 plt.show()
