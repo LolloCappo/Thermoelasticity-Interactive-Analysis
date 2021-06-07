@@ -22,7 +22,7 @@ If the module is in another folder, you can use :
 
    import sys
    sys.path.insert(0, '/path/to/application/app/folder')
-   import pyTSA
+   import pytsa
 
     
 Simple examples
