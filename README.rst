@@ -20,7 +20,6 @@ If the module is in another folder, you can use :
 
 .. code-block:: python
 
-   import sys
    sys.path.insert(0, '/path/to/application/app/folder')
    import pytsa
 
