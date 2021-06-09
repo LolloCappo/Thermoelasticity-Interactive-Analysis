@@ -13,17 +13,16 @@ If you have the script and pytsa module in the same folder, use `import` to use 
 
 .. code-block:: python
 
-   import sys 
+   import pytsa 
 
 
 If the module is in another folder, you can use :
 
 .. code-block:: python
 
+   import sys
    sys.path.insert(0, '/path/to/application/app/folder')
-   import pytsa
-
-    
+       
 Simple examples
 ---------------
 
