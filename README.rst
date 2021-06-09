@@ -1,5 +1,7 @@
 Thermoelastic Stress Analysis (TSA)
 ---------------------------------------------
+.. image:: https://zenodo.org/badge/323309933.svg
+   :target: https://zenodo.org/badge/latestdoi/323309933
 
 
 Perform interactive frequency-based analysis for thermal acquisition and data visualization: digital lock-in and real-frequency reconstruction using FFT approach 
