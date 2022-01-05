@@ -48,4 +48,4 @@ Here is a simple example on how to use the code:
 
 
 
-Other examples are included (`base.py <https://github.com/LolloCappo/Thermoelasticity-Interactive-Analysis/tree/main/Esempi>`_) 
+Other examples are included (`base.py <https://github.com/LolloCappo/Thermoelasticity-Interactive-Analysis/blob/main/Examples/Base.py>`_) 
